@@ -379,7 +379,7 @@ label.btn{position:relative}
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="shim.js?v=1792837334"></script>
+<script src="shim.js?v=1792839092"></script>
 <script>
 /* ===================== Constantes ===================== */
 const CATS=[
@@ -975,7 +975,7 @@ function docList(list,kind,jid,ed){
 }
 function mismoJugador(apodo,legal){const t=x=>norm(x).replace(/\(.*?\)/g," ").split(/[^a-z0-9]+/).filter(w=>w.length>2);const a=t(apodo),b=t(legal);return!a.length||!b.length||a.some(w=>b.includes(w))}
 function lecturaPanel(j){
-  const p=perms();if(!p.contratos||!S.sample)return"";
+  const p=perms();if(p.contratos&&!S.sample&&window.OF_WEB)return lecturaPanelWeb(j);if(!p.contratos||!S.sample)return"";
   const c=S.contratos[j.id]||{};const hay=(j.docsAgencia||[]).length||((c.club||{}).docs||[]).length;if(!hay)return"";
   const L=S.lectura[j.id]||{};
   const legal=(L.data&&((L.data.agencia||{}).jugador||(L.data.club||{}).jugador))||"";
@@ -1325,6 +1325,7 @@ async function uploadFile(input){
   else if(kind==="club"){const c=S.contratos[jid];const list=clone((c&&c.club&&c.club.docs)||[]);list.push(entry);const ref=S.db.doc("privado/contratos/items/"+jid);await safe(()=>c?ref.update(stamp({club:{docs:list}})):ref.set(stamp({club:{docs:list},comisiones:[]})),"Contrato subido")}
   clean();render();
   if((kind==="club"||kind==="agencia")&&S.sample&&perms()&&perms().contratos){setTimeout(()=>leerContratos(jid,{solo:kind,docId:r.id,auto:true}),400)}
+  else if((kind==="club"||kind==="agencia")&&window.OF_WEB&&perms()&&perms().contratos){await pedirLectura(jid,r.id)}
 }
 async function docDownload(aid,name){
   if(!S.downloads){toast("Esta vista no permite descargar archivos.");return}
@@ -2216,7 +2217,7 @@ document.addEventListener("click",async e=>{
       el.disabled=true;try{const r=await window.OF_WEB.crearUsuario(em.trim(),pw);await S.db.doc("miembros/"+id).update({userId:r.id,email:em.trim().toLowerCase(),activo:true});toast((m.userId?"Contraseña cambiada":"Acceso creado")+": "+em.trim()+" / "+pw)}catch(e){console.error(e);toast(e.message||"No se pudo crear el acceso.")}el.disabled=false;render();break}
     case"unlink":{const id=el.dataset.id;await safe(()=>S.db.doc("miembros/"+id).update({userId:""}),"Cuenta desvinculada");render();break}
     case"importar":importar();break;
-    case"lectLeer":leerContratos(el.dataset.id);break;
+    case"lectLeer":if(!S.sample&&window.OF_WEB)pedirLectura(el.dataset.id);else leerContratos(el.dataset.id);break;
     case"lectGuardar":guardarLectura(el.dataset.id);break;
     case"lectDescartar":delete S.lectura[el.dataset.id];render();break;
     case"liqSave":{const jid=el.dataset.id;const c=S.contratos[jid];const L=liquidar(S.jugadores[jid],c);const reg=clone((c&&c.comisiones)||[]);
@@ -2315,6 +2316,21 @@ async function boot(){
 }
 try{S.f.inicioOpen=JSON.parse(localStorage.getItem("of_inicio")||"[]")}catch(_){}
 try{const m=JSON.parse(localStorage.getItem("of_merc")||"null");if(m){S.f.mcat=m.c||"";S.f.mgrupo=m.g||"";S.f.meq=m.e||""}}catch(_){}
+async function pedirLectura(jid,docId){
+  const ref=S.db.doc("privado/contratos/items/"+jid);const c=S.contratos[jid];
+  const prev=c&&c.lectura&&c.lectura.estado==="pendiente"&&Array.isArray(c.lectura.docs)?c.lectura.docs:null;
+  const docs=!docId?[]:prev===null?[docId]:prev.length===0?[]:[...new Set([...prev,docId])];
+  const lec={estado:"pendiente",docs,pedida:new Date().toISOString(),por:mySlug()||"",hecha:null,nota:"",notas:[]};
+  try{await ref.update({lectura:lec})}catch(e){try{await ref.set({lectura:lec,club:{},comisiones:[]})}catch(e2){console.error(e2);toast("No se pudo pedir la lectura del contrato.");return}}
+  toast(docId?"Contrato subido: se leerá esta noche":"Lectura pedida: se hará esta noche");render();
+}
+function lecturaPanelWeb(j){
+  const c=S.contratos[j.id]||{};const hay=(j.docsAgencia||[]).length||((c.club||{}).docs||[]).length;if(!hay)return"";
+  const L=c.lectura||{};const pend=L.estado==="pendiente";
+  const est=pend?`<span class="pill warn">Pendiente: se leerá esta noche</span>`:L.estado==="hecho"?`<span class="pill ok">Leído el ${esc(fmtDate(String(L.hecha||"").slice(0,10)))}</span>`:L.estado==="error"?`<span class="pill bad">No se pudo leer</span>`:"";
+  return`<section class="panel span2"><div class="panel-h"><div><h3>Lectura automática del contrato</h3><div class="muted small">Al subir un contrato, Claude lo lee esa misma noche y rellena fechas, categoría, salario (bruto o neto), cláusula y quién paga la comisión.</div></div><div class="row">${est}<button class="btn" data-act="lectLeer" data-id="${esc(j.id)}"${pend?" disabled":""}>${L.estado==="hecho"||L.estado==="error"?"Volver a leer":"Leer contratos"}</button></div></div>${L.nota?`<div class="callout${L.estado==="error"?" warn":""}">${esc(L.nota)}</div>`:""}${(L.notas||[]).length?`<div class="callout">${L.notas.map(esc).join("<br>")}</div>`:""}${L.estado==="hecho"?`<div class="small muted">Revisa los datos en la ficha y en el contrato y corrige lo que haga falta.</div>`:""}</section>`;
+}
+
 window.ON_SVG_WEB=ON_SVG;
 boot();
 </script>

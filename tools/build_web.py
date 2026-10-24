@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Genera la versión web (site/index.html) a partir de la app de Claude (only-football.html)."""
 import re, sys
-SRC = "/home/claude/only-football.html"
-OUT = "/home/claude/web/site/index.html"
+import os
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, "tools", "only-football-claude.html")
+OUT = os.path.join(ROOT, "site", "index.html")
 s = open(SRC, encoding="utf-8").read()
 
 def rep(a, b, n=1):
@@ -50,8 +52,32 @@ rep('    case"unlink":{', '''    case"salir":{if(window.OF_WEB)window.OF_WEB.sal
       el.disabled=true;try{const r=await window.OF_WEB.crearUsuario(em.trim(),pw);await S.db.doc("miembros/"+id).update({userId:r.id,email:em.trim().toLowerCase(),activo:true});toast((m.userId?"Contraseña cambiada":"Acceso creado")+": "+em.trim()+" / "+pw)}catch(e){console.error(e);toast(e.message||"No se pudo crear el acceso.")}el.disabled=false;render();break}
     case"unlink":{''')
 
-# 6. Logo para la pantalla de acceso
-rep('\nboot();\n</script>', '\nwindow.ON_SVG_WEB=ON_SVG;\nboot();\n</script>')
+# 7. Contratos: en la web no hay IA dentro; al subirlos quedan pendientes y los lee una tarea de Claude por la noche
+rep('function lecturaPanel(j){\n  const p=perms();if(!p.contratos||!S.sample)return"";',
+    'function lecturaPanel(j){\n  const p=perms();if(p.contratos&&!S.sample&&window.OF_WEB)return lecturaPanelWeb(j);if(!p.contratos||!S.sample)return"";')
+rep('  if((kind==="club"||kind==="agencia")&&S.sample&&perms()&&perms().contratos){setTimeout(()=>leerContratos(jid,{solo:kind,docId:r.id,auto:true}),400)}',
+    '  if((kind==="club"||kind==="agencia")&&S.sample&&perms()&&perms().contratos){setTimeout(()=>leerContratos(jid,{solo:kind,docId:r.id,auto:true}),400)}\n  else if((kind==="club"||kind==="agencia")&&window.OF_WEB&&perms()&&perms().contratos){await pedirLectura(jid,r.id)}')
+rep('    case"lectLeer":leerContratos(el.dataset.id);break;',
+    '    case"lectLeer":if(!S.sample&&window.OF_WEB)pedirLectura(el.dataset.id);else leerContratos(el.dataset.id);break;')
+WEBFN = r"""
+async function pedirLectura(jid,docId){
+  const ref=S.db.doc("privado/contratos/items/"+jid);const c=S.contratos[jid];
+  const prev=c&&c.lectura&&c.lectura.estado==="pendiente"&&Array.isArray(c.lectura.docs)?c.lectura.docs:null;
+  const docs=!docId?[]:prev===null?[docId]:prev.length===0?[]:[...new Set([...prev,docId])];
+  const lec={estado:"pendiente",docs,pedida:new Date().toISOString(),por:mySlug()||"",hecha:null,nota:"",notas:[]};
+  try{await ref.update({lectura:lec})}catch(e){try{await ref.set({lectura:lec,club:{},comisiones:[]})}catch(e2){console.error(e2);toast("No se pudo pedir la lectura del contrato.");return}}
+  toast(docId?"Contrato subido: se leerá esta noche":"Lectura pedida: se hará esta noche");render();
+}
+function lecturaPanelWeb(j){
+  const c=S.contratos[j.id]||{};const hay=(j.docsAgencia||[]).length||((c.club||{}).docs||[]).length;if(!hay)return"";
+  const L=c.lectura||{};const pend=L.estado==="pendiente";
+  const est=pend?`<span class="pill warn">Pendiente: se leerá esta noche</span>`:L.estado==="hecho"?`<span class="pill ok">Leído el ${esc(fmtDate(String(L.hecha||"").slice(0,10)))}</span>`:L.estado==="error"?`<span class="pill bad">No se pudo leer</span>`:"";
+  return`<section class="panel span2"><div class="panel-h"><div><h3>Lectura automática del contrato</h3><div class="muted small">Al subir un contrato, Claude lo lee esa misma noche y rellena fechas, categoría, salario (bruto o neto), cláusula y quién paga la comisión.</div></div><div class="row">${est}<button class="btn" data-act="lectLeer" data-id="${esc(j.id)}"${pend?" disabled":""}>${L.estado==="hecho"||L.estado==="error"?"Volver a leer":"Leer contratos"}</button></div></div>${L.nota?`<div class="callout${L.estado==="error"?" warn":""}">${esc(L.nota)}</div>`:""}${(L.notas||[]).length?`<div class="callout">${L.notas.map(esc).join("<br>")}</div>`:""}${L.estado==="hecho"?`<div class="small muted">Revisa los datos en la ficha y en el contrato y corrige lo que haga falta.</div>`:""}</section>`;
+}
+"""
+
+# 6. Logo para la pantalla de acceso y funciones de la web
+rep('\nboot();\n</script>', WEBFN + '\nwindow.ON_SVG_WEB=ON_SVG;\nboot();\n</script>')
 
 import time
 s = s.replace("__V__", str(int(time.time())))
