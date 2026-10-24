@@ -647,7 +647,7 @@ function partidoFila(p,big){
 }
 function partidosPanel(j){
   const ps=partidosJ(j);
-  if(!ps.length)return`<section class="panel"><div class="panel-h"><h3>Sus partidos</h3></div><p class="muted" style="margin:0">Se rellenan solos los sábados y domingos por la noche con los datos de BeSoccer: titular o suplente, minutos, goles, asistencias, tarjetas y valoración.</p></section>`;
+  if(!ps.length)return`<section class="panel"><div class="panel-h"><h3>Sus partidos</h3></div><p class="muted" style="margin:0">Se rellenan solos con los datos de BeSoccer al poco de acabar cada partido (los fines de semana, cada 2 horas por la tarde) y en la revisión de cada noche: titular o suplente, minutos, goles, asistencias, tarjetas y valoración.</p></section>`;
   const al=alertaPartido(ps[0]);
   return`<section class="panel"><div class="panel-h"><h3>Sus partidos</h3><span class="muted small">${ps.length} registrados</span></div>
     ${al?`<div class="callout ${al.nivel==="ok"?"":"warn"}${al.nivel==="bad"?" bad":""}">${esc(al.txt)}</div>`:""}
@@ -655,6 +655,9 @@ function partidosPanel(j){
     ${ps.length>1?`<div class="pm-list">${ps.slice(1,10).map(p=>partidoFila(p,false)).join("")}</div>`:""}
   </section>`;
 }
+function jornadaAct(){const t=S.sync&&S.sync.ultimaEjecucion?new Date(S.sync.ultimaEjecucion):null;if(!t||isNaN(t))return"";
+  const h=t.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});const d=t.toDateString()===new Date().toDateString()?"hoy":t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric"});
+  return`<div class="muted small">Actualizado ${esc(d)} a las ${esc(h)}</div>`}
 function jornadaPanel(jug){
   const hoy=todayStr();
   const rows=jug.map(j=>({j,p:ultimoPartido(j)})).filter(o=>o.p&&daysBetween(o.p.fecha,hoy)<=8);
@@ -662,7 +665,7 @@ function jornadaPanel(jug){
   const prio=o=>{const a=alertaPartido(o.p);return a?a.nivel==="bad"?0:a.nivel==="warn"?1:2:3};
   rows.sort((a,b)=>prio(a)-prio(b)||String(a.j.nombre).localeCompare(b.j.nombre,"es"));
   const nAl=rows.filter(o=>prio(o)<2).length;
-  return`<section class="panel span2"><div class="panel-h"><h3>Última jornada</h3>${nAl?`<span class="pill bad">${nAl} ${nAl===1?"aviso":"avisos"}</span>`:`<span class="pill ok">Sin incidencias</span>`}</div>
+  return`<section class="panel span2"><div class="panel-h"><div><h3>Última jornada</h3>${jornadaAct()}</div>${nAl?`<span class="pill bad">${nAl} ${nAl===1?"aviso":"avisos"}</span>`:`<span class="pill ok">Sin incidencias</span>`}</div>
     <div class="list">${rows.map(({j,p})=>{const al=alertaPartido(p);return`<div class="li jl"><div class="li-main"><button class="linky" data-act="openJug" data-id="${esc(j.id)}">${esc(j.nombre)}</button><div class="li-s">${resTag(p)}<span class="mono">${esc(p.resultado||"")}</span> ${p.local===false?"en":"vs"} ${esc(p.rival||"")}${p.conSuperior?` <span class="tag-sup">CON ${esc(String(p.equipo||"el primer equipo").toUpperCase())}</span>`:""} · ${esc(estadoTxt(p))}</div>${al&&al.nivel!=="ok"?`<div class="small" style="color:${al.nivel==="bad"?"var(--bad)":"var(--warn)"}">${esc(al.txt)}</div>`:""}</div><div class="pm-r">${eventosHtml(p,true)}</div></div>`}).join("")}</div></section>`;
 }
 
@@ -678,6 +681,20 @@ function viewInicio(){
     avisos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/></svg>',
     semana:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     cont:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>'};
+  // 0. Resultados de la jornada (partidos de hoy y ayer, se rellena según acaban)
+  if(p.jugadores!=="none"){
+    const jr=visibleJugadores().map(j=>({j,p:ultimoPartido(j)})).filter(o=>o.p&&o.p.fecha&&daysBetween(o.p.fecha,hoy)<=1);
+    if(jr.length){
+      const jug=jr.filter(o=>["titular","suplente"].includes(o.p.estado));
+      const prio=o=>{const a=alertaPartido(o.p);return a?a.nivel==="bad"?0:a.nivel==="warn"?1:2:3};
+      jr.sort((a,b)=>(b.p.fecha.localeCompare(a.p.fecha))||prio(a)-prio(b)||String(a.j.nombre).localeCompare(b.j.nombre,"es"));
+      const nAl=jr.filter(o=>prio(o)<2).length;
+      const t=S.sync&&S.sync.ultimaEjecucion?new Date(S.sync.ultimaEjecucion):null;
+      const actTxt=t&&!isNaN(t)?(t.toDateString()===new Date().toDateString()?"act. hoy ":"act. "+t.toLocaleDateString("es-ES",{weekday:"short"})+" ")+t.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}):"";
+      rows.push(row("jornada",ic.semana,"Resultados de la jornada",jr.length,(jug.length+(jug.length===1?" jugó":" jugaron"))+(nAl?" · "+nAl+(nAl===1?" aviso":" avisos"):"")+(actTxt?" · "+actTxt:""),nAl?"warn":"",
+        `<div class="list">${jr.map(({j,p:pm})=>{const al=alertaPartido(pm);return`<div class="li"><div class="li-main"><button class="linky" data-act="openJug" data-id="${esc(j.id)}">${esc(j.nombre)}</button><div class="li-s">${resTag(pm)}<span class="mono">${esc(pm.resultado||"")}</span> ${pm.local===false?"en":"vs"} ${esc(pm.rival||"")}${pm.conSuperior?" · con el primer equipo":""} · ${esc(pm.fecha===hoy?"hoy":fmtShort(pm.fecha))}</div><div class="li-s">${esc(estadoTxt(pm))}</div>${al&&al.nivel==="bad"?`<div class="li-s" style="color:var(--bad)">${esc(al.txt)}</div>`:""}</div><div class="row">${eventosHtml(pm,true)}</div></div>`}).join("")}</div>
+        <p class="muted small" style="margin:8px 0 0">Los fines de semana se actualiza cada 2 horas por la tarde según acaban los partidos, y cada noche se hace la revisión completa.</p>`))}
+  }
   // 1. Cumpleaños
   if(p.jugadores!=="none"){
     const jug=visibleJugadores();
@@ -1778,7 +1795,7 @@ function viewCapJug(){
     ${on?`${due?`<div class="callout warn">${esc(due.txt)}</div>`:`<div class="muted small">Al día: contacto esta semana y después de su último partido.</div>`}
     <form data-form="capSeg" data-dirtytrack><div class="form">${F("fecha","Fecha",todayStr(),{type:"date"})}${F("canal","Canal","WhatsApp",{type:"select",opts:[...CANALES,"Familia"],empty:false})}${F("nota","Qué hablasteis","",{type:"textarea",span:true,rows:2,ph:"Cómo va la semana, minutos, qué piensa de la agencia, siguiente paso…"})}<div class="form-actions">${c.telefono?`<a class="btn ghost" href="${esc(waLink(c.telefono))}" target="_blank" rel="noopener">WhatsApp</a>`:""}<button class="btn primary">Anotar contacto</button></div></div></form>
     ${seg.length?`<div class="list">${seg.slice(0,30).map(x=>`<div class="li"><div class="li-main"><div class="li-t"><span class="mono small">${fmtShort(x.fecha)}</span> · ${esc(x.canal||"")} <span class="muted small">· ${esc(memberName(x.autor))}</span></div>${x.nota?`<div class="li-s" style="white-space:pre-wrap">${esc(x.nota)}</div>`:""}</div>${(S.me.isOwner||x.autor===mySlug())?delBtn("cseg:"+c.id+":"+x.id,"Quitar"):""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos anotados.</p>`}`
-    :`<p class="muted" style="margin:0">Actívalo para seguirle como a un jugador de la agencia: sus partidos se actualizan solos cada noche y te aviso después de cada partido y si pasa una semana sin hablar con él. Se activa solo al ponerle «Contactado» o «Negociando».</p>`}
+    :`<p class="muted" style="margin:0">Actívalo para seguirle como a un jugador de la agencia: sus partidos se actualizan solos al poco de acabar (los fines de semana, cada 2 horas por la tarde, y cada noche) y te aviso después de cada partido y si pasa una semana sin hablar con él. Se activa solo al ponerle «Contactado» o «Negociando».</p>`}
     </section>${on?partidosPanel(c):""}`})()}
   <section class="panel"><div class="panel-h"><h3>Observaciones en partidos</h3><span class="muted small">${obs.length}</span></div>
     ${obs.length?`<div class="list">${obs.map(({pa,k})=>`<div class="li"><div class="li-main"><button class="linky" data-act="openPartido" data-id="${esc(pa.id)}">${esc(pa.local)} – ${esc(pa.visitante)}</button> <span class="pos">${esc(k.posicion||"")}</span><div class="li-s"><span class="mono">${fmtShort(pa.fecha)}</span> · ${esc(memberName(pa.captador))}${k.nota?" · "+esc(k.nota):""}</div></div></div>`).join("")}</div>`:`<p class="muted" style="margin:0">Sin observaciones. Márcalo en el campograma de un partido para que aparezcan aquí.</p>`}
