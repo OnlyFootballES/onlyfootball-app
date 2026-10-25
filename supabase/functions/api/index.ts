@@ -84,6 +84,19 @@ Deno.serve(async (req) => {
     const jwt = auth.replace(/^Bearer\s+/i, "");
     const { data: ud, error: ue } = await admin.auth.getUser(jwt);
     if (ue || !ud.user) return json({ error: "Inicia sesión de nuevo." }, 401);
+    if (accion === "leerContratos") {
+      // Pone en marcha la tarea «Lectura de contratos» (solo si hay una lectura pedida)
+      const b0 = await req.json().catch(() => ({}));
+      const jid = String(b0.jid || "");
+      const { data: c } = await admin.from("docs").select("data").eq("col", "privado/contratos/items").eq("id", jid).maybeSingle();
+      if (!c || !c.data || !c.data.lectura || c.data.lectura.estado !== "pendiente") return json({ error: "No hay ninguna lectura pedida para este jugador." }, 400);
+      const furl = Deno.env.get("ROUTINE_FIRE_URL"), ftok = Deno.env.get("ROUTINE_FIRE_TOKEN");
+      if (!furl || !ftok) return json({ error: "sin_token" }, 503);
+      const r = await fetch(furl, { method: "POST", headers: { Authorization: "Bearer " + ftok, "anthropic-version": "2026-10-21", "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Lectura pedida desde la app (botón «Leer con Claude») para el jugador con id " + jid + "." }) });
+      if (!r.ok) { const t = await r.text(); console.error("fire", r.status, t); return json({ error: r.status === 429 ? "Demasiadas lecturas en la última hora; prueba más tarde." : "No se pudo poner en marcha la lectura (" + r.status + ")." }, 502); }
+      return json({ ok: true });
+    }
     const email = (ud.user.email || "").toLowerCase();
     const { data: own } = await admin.from("app_owners").select("email").eq("email", email).maybeSingle();
     if (!own) return json({ error: "Solo Josemi puede hacer esto." }, 403);

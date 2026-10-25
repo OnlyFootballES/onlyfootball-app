@@ -111,6 +111,7 @@ async function callApi(accion,body){const {data:{session}}=await sb.auth.getSess
 window.OF_WEB={
   crearUsuario:(email,password)=>callApi("crearUsuario",{email,password}),
   usuarios:()=>callApi("usuarios",{}),
+  leerContratos:(jid)=>callApi("leerContratos",{jid}),
   async salir(){await sb.auth.signOut();try{localStorage.removeItem("of_auth")}catch(_){}location.reload()},
   get email(){return ME&&ME.email},
   async cambiarClave(pw){const {error}=await sb.auth.updateUser({password:pw});if(error)throw error}

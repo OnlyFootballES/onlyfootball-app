@@ -56,7 +56,7 @@ rep('    case"unlink":{', '''    case"salir":{if(window.OF_WEB)window.OF_WEB.sal
 rep('function lecturaPanel(j){\n  const p=perms();if(!p.contratos||!S.sample)return"";',
     'function lecturaPanel(j){\n  const p=perms();if(p.contratos&&!S.sample&&window.OF_WEB)return lecturaPanelWeb(j);if(!p.contratos||!S.sample)return"";')
 rep('  if((kind==="club"||kind==="agencia")&&S.sample&&perms()&&perms().contratos){setTimeout(()=>leerContratos(jid,{solo:kind,docId:r.id,auto:true}),400)}',
-    '  if((kind==="club"||kind==="agencia")&&S.sample&&perms()&&perms().contratos){setTimeout(()=>leerContratos(jid,{solo:kind,docId:r.id,auto:true}),400)}\n  else if((kind==="club"||kind==="agencia")&&window.OF_WEB&&perms()&&perms().contratos){await pedirLectura(jid,r.id)}')
+    '  if((kind==="club"||kind==="agencia")&&S.sample&&perms()&&perms().contratos){setTimeout(()=>leerContratos(jid,{solo:kind,docId:r.id,auto:true}),400)}\n')
 rep('    case"lectLeer":leerContratos(el.dataset.id);break;',
     '    case"lectLeer":if(!S.sample&&window.OF_WEB)pedirLectura(el.dataset.id);else leerContratos(el.dataset.id);break;')
 WEBFN = r"""
@@ -66,13 +66,15 @@ async function pedirLectura(jid,docId){
   const docs=!docId?[]:prev===null?[docId]:prev.length===0?[]:[...new Set([...prev,docId])];
   const lec={estado:"pendiente",docs,pedida:new Date().toISOString(),por:mySlug()||"",hecha:null,nota:"",notas:[]};
   try{await ref.update({lectura:lec})}catch(e){try{await ref.set({lectura:lec,club:{},comisiones:[]})}catch(e2){console.error(e2);toast("No se pudo pedir la lectura del contrato.");return}}
-  toast(docId?"Contrato subido: se leerá esta noche":"Lectura pedida: se hará esta noche");render();
+  render();
+  try{await window.OF_WEB.leerContratos(jid);toast("Claude está leyendo el contrato: en unos minutos verás aquí los datos")}
+  catch(e){console.error(e);toast(e.message==="sin_token"?"Lectura pedida, pero el botón aún no está conectado con Claude: avisa a Josemi.":(e.message||"No se pudo poner en marcha la lectura."))}
 }
 function lecturaPanelWeb(j){
   const c=S.contratos[j.id]||{};const hay=(j.docsAgencia||[]).length||((c.club||{}).docs||[]).length;if(!hay)return"";
   const L=c.lectura||{};const pend=L.estado==="pendiente";
-  const est=pend?`<span class="pill warn">Pendiente: se leerá esta noche</span>`:L.estado==="hecho"?`<span class="pill ok">Leído el ${esc(fmtDate(String(L.hecha||"").slice(0,10)))}</span>`:L.estado==="error"?`<span class="pill bad">No se pudo leer</span>`:"";
-  return`<section class="panel span2"><div class="panel-h"><div><h3>Lectura automática del contrato</h3><div class="muted small">Al subir un contrato, Claude lo lee esa misma noche y rellena fechas, categoría, salario (bruto o neto), cláusula y quién paga la comisión.</div></div><div class="row">${est}<button class="btn" data-act="lectLeer" data-id="${esc(j.id)}"${pend?" disabled":""}>${L.estado==="hecho"||L.estado==="error"?"Volver a leer":"Leer contratos"}</button></div></div>${L.nota?`<div class="callout${L.estado==="error"?" warn":""}">${esc(L.nota)}</div>`:""}${(L.notas||[]).length?`<div class="callout">${L.notas.map(esc).join("<br>")}</div>`:""}${L.estado==="hecho"?`<div class="small muted">Revisa los datos en la ficha y en el contrato y corrige lo que haga falta.</div>`:""}</section>`;
+  const est=pend?`<span class="pill warn">Leyendo… (unos minutos)</span>`:L.estado==="hecho"?`<span class="pill ok">Leído el ${esc(fmtDate(String(L.hecha||"").slice(0,10)))}</span>`:L.estado==="error"?`<span class="pill bad">No se pudo leer</span>`:"";
+  return`<section class="panel span2"><div class="panel-h"><div><h3>Leer el contrato con Claude</h3><div class="muted small">Lo normal es rellenar los datos del contrato a mano. Solo si lo necesitas, pulsa el botón y Claude leerá los documentos subidos en unos minutos y rellenará fechas, categoría, salario (bruto o neto), cláusula y quién paga la comisión.</div></div><div class="row">${est}<button class="btn" data-act="lectLeer" data-id="${esc(j.id)}"${pend?" disabled":""}>${L.estado==="hecho"||L.estado==="error"?"Volver a leer con Claude":"Leer con Claude"}</button></div></div>${L.nota?`<div class="callout${L.estado==="error"?" warn":""}">${esc(L.nota)}</div>`:""}${(L.notas||[]).length?`<div class="callout">${L.notas.map(esc).join("<br>")}</div>`:""}${L.estado==="hecho"?`<div class="small muted">Revisa los datos en la ficha y en el contrato y corrige lo que haga falta.</div>`:""}</section>`;
 }
 """
 
