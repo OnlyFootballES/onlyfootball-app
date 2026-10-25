@@ -807,9 +807,8 @@ function formNuevoJugador(){
 function viewJugador(){
   const j=S.jugadores[S.nav.id];const p=perms();
   if(!j||(p.jugadores==="suyos"&&!isMine(j)))return`<button class="back" data-act="tab" data-tab="jugadores">← Jugadores</button><div class="empty"><strong>Jugador no disponible</strong><span>Puede que se haya borrado o que no tengas acceso.</span></div>`;
-  const subs=[["info","Información"]];
+  const subs=[["info","Información"],["comunicaciones","Comunicaciones"],["cumple","Cumpleaños"]];
   if(p.vencimientos||p.contratos)subs.push(["contrato","Contrato"]);
-  subs.push(["cumple","Cumpleaños"],["comunicaciones","Comunicaciones"]);
   let sub=S.nav.sub;if(!subs.some(s=>s[0]===sub))sub="info";
   const a=age(j.fechaNac);
   let body="";
