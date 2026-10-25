@@ -1462,7 +1462,7 @@ function viewCapRel(){
   const R=relacionesCap(c);const st=(c.relacion||{}).estado;
   const conDatos=Object.values(S.jugadores).filter(j=>(j.trayectoria||[]).length).length,tot=Object.keys(S.jugadores).length;
   const tieneTray=(c.trayectoria||[]).length>0;
-  const estado=st==="pendiente"?`<div class="callout">Buscando su trayectoria y su pueblo en BeSoccer. Tarda como mucho una hora; esta página se actualiza sola.</div>`
+  const estado=st==="pendiente"?`<div class="callout">Buscando su trayectoria y su pueblo en BeSoccer. Se hace en la revisión de cada mañana (09:13); si lo necesitas antes, pulsa «Ejecutar ahora» en la tarea «Captación diaria» de claude.ai. Esta página se actualiza sola.</div>`
     :st==="sin_datos"?`<div class="callout warn">No se ha encontrado su ficha en BeSoccer${(c.relacion||{}).nota?": "+esc(c.relacion.nota):""}. Pega abajo su enlace de BeSoccer y vuelve a buscar.</div>`:"";
   FK="cr";
   const sec=(titulo,arr,vacio,muted)=>`<section class="panel"><div class="panel-h"><h3>${titulo}</h3><span class="muted small">${arr.length}</span></div>${arr.length?`<div class="list${muted?" muted-list":""}">${arr.map(relCard).join("")}</div>`:`<p class="muted" style="margin:0">${vacio}</p>`}</section>`;
@@ -1470,7 +1470,7 @@ function viewCapRel(){
   <div class="head"><div class="head-l"><span class="eyebrow">Relación con la agencia</span><h1>${esc(c.nombre)}</h1><div class="muted">${esc([c.club,c.lugarNacimiento?"De "+c.lugarNacimiento:c.pueblo?"De "+c.pueblo:""].filter(Boolean).join(" · "))}</div></div>
     <div class="row"><button class="btn" data-act="relBuscar" data-id="${esc(c.id)}"${st==="pendiente"?" disabled":""}>${st==="pendiente"?"Buscando…":tieneTray?"Actualizar datos":"Buscar datos"}</button></div></div>
   ${estado}
-  ${!tieneTray&&st!=="pendiente"&&st!=="sin_datos"?`<div class="callout">Aún no tenemos su trayectoria. Pulsa «Buscar datos» y en menos de una hora aparecerá con quién de la agencia ha coincidido.</div>`:""}
+  ${!tieneTray&&st!=="pendiente"&&st!=="sin_datos"?`<div class="callout">Aún no tenemos su trayectoria. Pulsa «Buscar datos» y a la mañana siguiente aparecerá con quién de la agencia ha coincidido.</div>`:""}
   <div class="grid2">
   <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
   ${sec("Compartieron vestuario",R.vest,tieneTray?"No ha coincidido en ningún equipo ni selección con jugadores de la agencia.":"Sin datos todavía.")}
@@ -1619,7 +1619,7 @@ function listaPartidos(){
   const hoy=todayStr();
   const prox=list.filter(p=>p.fecha>=hoy).sort((a,b)=>(a.fecha+(a.hora||"")).localeCompare(b.fecha+(b.hora||""))),pas=list.filter(p=>!(p.fecha>=hoy));
   const card=p=>{const al=p.alineaciones||{};return`<div class="card pcard"><button class="pcard-open" data-act="openPartido" data-id="${esc(p.id)}"><span class="eyebrow">${fmtDate(p.fecha)}${p.hora?" · "+esc(p.hora):""}${p.categoria?" · "+esc(p.categoria):""}</span><span class="card-t">${esc(p.local||"Local")} – ${esc(p.visitante||"Visitante")}</span><div class="card-f"><span class="pill acc">${(p.marcadores||[]).length} marcados</span>${(()=>{const n=nuestrosEn(p);return n.length?`<span class="pill ok" title="${esc(n.map(j=>j.nombre).join(", "))}">${n.length===1?esc(n[0].nombre):n.length+" nuestros"}</span>`:""})()}${al.fuente==="confirmadas"?`<span class="pill ok">Alineaciones</span>`:al.fuente==="plantilla"?`<span class="pill">Plantillas</span>`:""}<span class="card-m">${esc(memberName(p.captador))}</span></div></button><div class="pcard-del">${delBtn("partido:"+p.id,"Quitar partido")}</div></div>`};
-  return nf+(list.length?`${prox.length?`<section class="pgroup"><div class="pgroup-h"><h2>Próximos</h2><span class="mono muted">${prox.length}</span></div><div class="grid3">${prox.map(card).join("")}</div></section>`:""}${pas.length?`<section class="pgroup"><div class="pgroup-h"><h2>Vistos</h2><span class="mono muted">${pas.length}</span></div><div class="grid3">${pas.map(card).join("")}</div></section>`:""}`:`<div class="empty"><strong>Sin partidos</strong><span>Elige un partido del calendario y asigna quién lo ve. Las alineaciones se cargan solas antes del inicio.</span></div>`);
+  return nf+(list.length?`${prox.length?`<section class="pgroup"><div class="pgroup-h"><h2>Próximos</h2><span class="mono muted">${prox.length}</span></div><div class="grid3">${prox.map(card).join("")}</div></section>`:""}${pas.length?`<section class="pgroup"><div class="pgroup-h"><h2>Vistos</h2><span class="mono muted">${pas.length}</span></div><div class="grid3">${pas.map(card).join("")}</div></section>`:""}`:`<div class="empty"><strong>Sin partidos</strong><span>Elige un partido del calendario y asigna quién lo ve. La hora y las plantillas se cargan solas en la revisión de la mañana.</span></div>`);
 }
 
 function listaCapJug(){
@@ -1675,13 +1675,13 @@ function alineacionesPanel(p){
   const team=S.f.lteam==="visitante"?"visitante":"local";
   const placed=new Set((p.marcadores||[]).map(k=>k.lkey).filter(Boolean));
   const sec=(grupo,titulo)=>{const arr=((al[team]||{})[grupo])||[];if(!arr.length)return"";return`<div class="eyebrow" style="margin:8px 0 4px">${titulo}</div><div class="lchips">${arr.map((x,i)=>{const k=lineupKey(team,grupo,i);return`<button type="button" class="lchip${placed.has(k)?" placed":""}${S.pickChip===k?" picked":""}${team==="visitante"?" away":""}" data-act="lchip" data-lchip="${esc(k)}" title="Arrastra al campo o tócalo y luego toca el campo"><span class="lchip-d">${esc(x.d??"")}</span><span class="lchip-n">${esc(x.n||"")}</span>${x.p?`<span class="lchip-p">${esc(x.p)}</span>`:""}</button>`}).join("")}</div>`};
-  const estado=fuente==="confirmadas"?`<span class="pill ok">Alineaciones confirmadas</span>`:fuente==="probables"?`<span class="pill warn">Alineaciones probables</span>`:fuente==="plantilla"?`<span class="pill">Plantillas · aún sin alineación</span>`:`<span class="pill">Pendiente</span>`;
+  const estado=fuente==="confirmadas"?`<span class="pill ok">Alineaciones confirmadas</span>`:fuente==="probables"?`<span class="pill warn">Alineaciones probables</span>`:fuente==="plantilla"?`<span class="pill ok">Plantillas cargadas</span>`:`<span class="pill">Pendiente</span>`;
   const hayAlgo=fuente&&((al.local&&((al.local.titulares||[]).length||(al.local.plantilla||[]).length))||(al.visitante&&((al.visitante.titulares||[]).length||(al.visitante.plantilla||[]).length)));
-  return`<section class="panel"><div class="panel-h"><h3>Alineaciones</h3>${estado}</div>
+  return`<section class="panel"><div class="panel-h"><h3>Plantillas</h3>${estado}</div>
     ${hayAlgo?`<div class="tabs" role="tablist"><button role="tab" aria-selected="${team==="local"}" data-act="lteam" data-v="local">${esc(p.local||"Local")}</button><button role="tab" aria-selected="${team==="visitante"}" data-act="lteam" data-v="visitante">${esc(p.visitante||"Visitante")}</button></div>
       ${sec("titulares","Titulares")}${sec("suplentes","Suplentes")}${sec("plantilla","Plantilla")}
       <p class="muted small" style="margin:6px 0 0">Arrastra al jugador hasta el campo, o tócalo y después toca el sitio del campo donde juega.</p>`
-    :`<p class="muted small" style="margin:0">${p.besoccerUrl?"Las plantillas de los dos equipos se cargan en las próximas horas y las alineaciones en cuanto BeSoccer las publique (normalmente una hora antes del inicio).":"Este partido se apuntó a mano y no está enlazado con BeSoccer, así que no se cargan las alineaciones."} Mientras, puedes tocar el campo para marcar a un jugador a mano.</p>`}
+    :`<p class="muted small" style="margin:0">${p.besoccerUrl?"La hora y las plantillas de los dos equipos se cargan solas en la revisión de la mañana siguiente a asignar el partido (09:13). Si lo necesitas antes, pulsa «Ejecutar ahora» en la tarea «Captación diaria» de claude.ai.":"Este partido se apuntó a mano y no está enlazado con BeSoccer, así que no se cargan las plantillas."} Mientras, puedes tocar el campo para marcar a un jugador a mano.</p>`}
     ${al.actualizado?`<div class="muted small">Actualizado ${esc(new Date(al.actualizado).toLocaleString("es-ES",{weekday:"short",hour:"2-digit",minute:"2-digit"}))}</div>`:""}
   </section>`;
 }
@@ -2184,7 +2184,7 @@ document.addEventListener("click",async e=>{
     case"openJug":S.f.ctab=S.f.ctab;go("jugadores",el.dataset.id,el.dataset.sub||"info");break;
     case"openCap":go("captacion",el.dataset.id,"jug");break;
     case"openRel":go("captacion",el.dataset.id,"rel");break;
-    case"relBuscar":{const id=el.dataset.id;el.disabled=true;await safe(()=>col("captacion_jugadores").doc(id).update({relacion:{estado:"pendiente",pedida:new Date().toISOString(),por:mySlug()||""}}),"Buscando datos: en menos de una hora estarán aquí");render();break}
+    case"relBuscar":{const id=el.dataset.id;el.disabled=true;await safe(()=>col("captacion_jugadores").doc(id).update({relacion:{estado:"pendiente",pedida:new Date().toISOString(),por:mySlug()||""}}),"Pedido: los datos estarán aquí mañana a primera hora");render();break}
     case"openPartido":go("partidos",el.dataset.id,"partido");break;
     case"ptab":S.f.ptab=el.dataset.t;S.newForm=null;render();break;
     case"ctipo":S.f.ctipo=el.dataset.v;render();break;
