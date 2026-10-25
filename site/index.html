@@ -379,7 +379,7 @@ label.btn{position:relative}
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="shim.js?v=1792873235"></script>
+<script src="shim.js?v=1792916822"></script>
 <script>
 /* ===================== Constantes ===================== */
 const CATS=[
@@ -440,7 +440,7 @@ const S={
   miembros:{},jugadores:{},partidos:{},calendario:{},tareas:{},dictado:{},mcp:null,acredClubs:{},acredCfg:null,capJug:{},equipos:{},contratos:{},solicitudes:{},miSolicitud:null,config:null,
   loaded:{},nav:{tab:"inicio",id:null,sub:null},
   dirty:false,pending:false,
-  f:{jq:"",jresp:"",jsit:"",jgrp:"",jsub:false,cq:"",cest:"",ccap:"",mcat:"",mgrupo:"",meq:"",meqOtro:false,mhist:false,mcont:false,mq:"",mmine:false,ctab:"partidos",lteam:"local",npGrupo:"",acredOpen:""},
+  f:{jq:"",jresp:"",jsit:"",jgrp:"",jsub:false,cq:"",cest:"",cseg:"",ccap:"",mcat:"",mgrupo:"",meq:"",meqOtro:false,mhist:false,mcont:false,mq:"",mmine:false,ctab:"partidos",lteam:"local",npGrupo:"",acredOpen:""},
   gen:{},calc:{},pitchDraft:null,pitchSel:null,pickChip:null,suppressClick:0,newForm:null,armed:null,importLog:"",linkOpen:null
 };
 let FK="f";
@@ -649,7 +649,7 @@ function partidoFila(p,big){
 }
 function partidosPanel(j){
   const ps=partidosJ(j);
-  if(!ps.length)return`<section class="panel"><div class="panel-h"><h3>Sus partidos</h3></div><p class="muted" style="margin:0">Se rellenan solos con los datos de BeSoccer al poco de acabar cada partido (los fines de semana, cada 2 horas por la tarde) y en la revisión de cada noche: titular o suplente, minutos, goles, asistencias, tarjetas y valoración.</p></section>`;
+  if(!ps.length)return`<section class="panel"><div class="panel-h"><h3>Sus partidos</h3></div><p class="muted" style="margin:0">Se rellenan solos con los datos de BeSoccer al poco de acabar cada partido (los fines de semana, cada 2 horas por la tarde): titular o suplente, minutos, goles, asistencias, tarjetas y valoración.</p></section>`;
   const al=alertaPartido(ps[0]);
   return`<section class="panel"><div class="panel-h"><h3>Sus partidos</h3><span class="muted small">${ps.length} registrados</span></div>
     ${al?`<div class="callout ${al.nivel==="ok"?"":"warn"}${al.nivel==="bad"?" bad":""}">${esc(al.txt)}</div>`:""}
@@ -1631,14 +1631,18 @@ function listaCapJug(){
   if(f.ctipo==="ent")list=list.filter(esEntrenador);else if(f.ctipo==="jug")list=list.filter(c=>!esEntrenador(c));
   const counts=Object.fromEntries(EST_CAP.map(e=>[e,0]));list.forEach(c=>{const e=c.estado||"Observado";if(counts[e]!=null)counts[e]++});
   if(f.cest)list=list.filter(c=>(c.estado||"Observado")===f.cest);
+  const nSeg=list.filter(capSeg).length,nNo=list.length-nSeg;
+  if(f.cseg==="si")list=list.filter(capSeg);else if(f.cseg==="no")list=list.filter(c=>!capSeg(c));
   if(f.ccap)list=list.filter(c=>c.captador===f.ccap);
   if(f.cq){const q=norm(f.cq);list=list.filter(c=>norm([c.nombre,c.club,c.posicion,c.agente].join(" ")).includes(q))}
   list.sort((a,b)=>String(b.actualizado||"").localeCompare(String(a.actualizado||"")));
   const nf=S.newForm==="capjug"?(FK="nc",`<form class="panel" data-form="nuevoCap" data-dirtytrack><div class="panel-h"><h3>Nuevo candidato</h3></div><div class="form">
     ${F("tipo","Tipo","Jugador",{type:"select",opts:["Jugador","Entrenador"],empty:false})}${F("nombre","Nombre","")}${F("posicion","Posición","",{type:"select",opts:POS_OPTS})}${clubField("club","Club","")}${F("anio","Año de nacimiento","",{type:"number"})}${F("captador","Captador",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])})}
+    ${F("seguimientoActivo","Seguimiento al minuto: buscar sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57 y avisarme al acabar",false,{type:"check",span:true})}
     <div class="form-actions"><button type="button" class="btn ghost" data-act="cancelNew">Cancelar</button><button class="btn primary">Crear ficha</button></div></div>${datalistEquipos()}</form>`):"";
   return nf+`<div class="chips" role="group" aria-label="Tipo"><button class="chip" aria-pressed="${!f.ctipo}" data-act="ctipo" data-v="">Todos <span class="n">${all.length}</span></button><button class="chip" aria-pressed="${f.ctipo==="jug"}" data-act="ctipo" data-v="jug">JUGADORES <span class="n">${all.length-nEnt}</span></button><button class="chip" aria-pressed="${f.ctipo==="ent"}" data-act="ctipo" data-v="ent">ENTRENADORES <span class="n">${nEnt}</span></button></div>
   <div class="chips"><button class="chip" aria-pressed="${!f.cest}" data-act="cest" data-v="">Todos <span class="n">${Object.keys(S.capJug).length}</span></button>${EST_CAP.map(e=>`<button class="chip" aria-pressed="${f.cest===e}" data-act="cest" data-v="${esc(e)}">${e} <span class="n">${counts[e]}</span></button>`).join("")}</div>
+  <div class="chips" role="group" aria-label="Seguimiento"><button class="chip" aria-pressed="${!f.cseg}" data-act="cseg" data-v="">Todos</button><button class="chip" aria-pressed="${f.cseg==="si"}" data-act="cseg" data-v="si" title="Se buscan sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57">SEGUIMIENTO AL MINUTO <span class="n">${nSeg}</span></button><button class="chip" aria-pressed="${f.cseg==="no"}" data-act="cseg" data-v="no">SOLO NOS GUSTA <span class="n">${nNo}</span></button></div>
   <div class="toolbar"><label class="search">${ICON.search}<input id="q_cap" data-filter="cq" type="search" placeholder="Buscar por nombre, club o agente" value="${esc(f.cq)}" aria-label="Buscar en captación"></label>
   <select data-filter="ccap" id="fl_ccap" aria-label="Captador"><option value="">Todos los captadores</option>${membersSorted().map(m=>`<option value="${esc(m.id)}"${f.ccap===m.id?" selected":""}>${esc(m.nombre)}</option>`).join("")}</select></div>
   ${list.length?`<div class="grid3">${list.map(c=>`<button class="card${esEntrenador(c)?" coach":""}" data-act="openCap" data-id="${esc(c.id)}"><div class="row" style="justify-content:space-between"><span class="card-t">${esc(c.nombre)}</span>${esEntrenador(c)?`<span class="pos role">ENTRENADOR</span>`:c.posicion?`<span class="pos">${esc(c.posicion)}</span>`:""}</div><div class="card-m">${esc([c.club,c.anio?"Año "+c.anio:""].filter(Boolean).join(" · ")||"Sin club")}</div><div class="card-f"><span class="pill ${EST_CAP_TONE[c.estado||"Observado"]}">${esc(c.estado||"Observado")}</span>${capSeg(c)?(()=>{const due=contactoDue(c,todayStr());return due?`<span class="pill ${due.nivel}">${due.tipo==="partido"?"Escríbele tras el partido":due.d===null?"Sin contactos":"Contacto hace "+due.d+" d"}</span>`:`<span class="pill ok">Contacto al día</span>`})():""}${c.tieneAgente==="Sí"?`<span class="pill ${c.firmadoAgente==="Sí"?"bad":"warn"}">${c.firmadoAgente==="Sí"?"Firmado con agente":"Tiene agente"}</span>`:c.tieneAgente==="No"?`<span class="pill ok">Sin agente</span>`:""}${stars(c.valoracion)}</div><div class="card-m">${esc(memberName(c.captador))}</div></button>`).join("")}</div>`:`<div class="empty"><strong>${Object.keys(S.capJug).length?"Ningún jugador coincide":"Sin jugadores en captación"}</strong><span>Se crean solos al marcarlos en un partido, o añádelos a mano.</span></div>`}`;
@@ -1794,11 +1798,12 @@ function viewCapJug(){
     <div class="form-actions">${delBtn("cap:"+c.id,"Borrar ficha")}<button class="btn primary">Guardar</button></div></div>${datalistEquipos()}</form>
   <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
   ${(()=>{const on=capSeg(c);const seg=(c.seguimientos||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));const due=on?contactoDue(c,todayStr()):null;FK="cs";
-    return`<section class="panel"><div class="panel-h"><h3>Seguimiento</h3><label class="switch"><input type="checkbox" id="sw_seg_${esc(c.id)}" data-act-change="capSegToggle" data-id="${esc(c.id)}"${on?" checked":""}><span class="sw-track" aria-hidden="true"></span><span>${on?"Activo":"Inactivo"}</span></label></div>
+    return`<section class="panel"><div class="panel-h"><h3>Seguimiento al minuto</h3><label class="switch"><input type="checkbox" id="sw_seg_${esc(c.id)}" data-act-change="capSegToggle" data-id="${esc(c.id)}"${on?" checked":""}><span class="sw-track" aria-hidden="true"></span><span>${on?"Activo":"Inactivo"}</span></label></div>
+    <div class="muted small" style="margin-bottom:8px">${on?"Se buscan sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57 y te aviso al acabar cada uno.":"Desactivado: está en «Solo nos gusta» y no se buscan sus partidos."}</div>
     ${on?`${due?`<div class="callout warn">${esc(due.txt)}</div>`:`<div class="muted small">Al día: contacto esta semana y después de su último partido.</div>`}
     <form data-form="capSeg" data-dirtytrack><div class="form">${F("fecha","Fecha",todayStr(),{type:"date"})}${F("canal","Canal","WhatsApp",{type:"select",opts:[...CANALES,"Familia"],empty:false})}${F("nota","Qué hablasteis","",{type:"textarea",span:true,rows:2,ph:"Cómo va la semana, minutos, qué piensa de la agencia, siguiente paso…"})}<div class="form-actions">${c.telefono?`<a class="btn ghost" href="${esc(waLink(c.telefono))}" target="_blank" rel="noopener">WhatsApp</a>`:""}<button class="btn primary">Anotar contacto</button></div></div></form>
     ${seg.length?`<div class="list">${seg.slice(0,30).map(x=>`<div class="li"><div class="li-main"><div class="li-t"><span class="mono small">${fmtShort(x.fecha)}</span> · ${esc(x.canal||"")} <span class="muted small">· ${esc(memberName(x.autor))}</span></div>${x.nota?`<div class="li-s" style="white-space:pre-wrap">${esc(x.nota)}</div>`:""}</div>${(S.me.isOwner||x.autor===mySlug())?delBtn("cseg:"+c.id+":"+x.id,"Quitar"):""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos anotados.</p>`}`
-    :`<p class="muted" style="margin:0">Actívalo para seguirle como a un jugador de la agencia: sus partidos se actualizan solos al poco de acabar (los fines de semana, cada 2 horas por la tarde, y cada noche) y te aviso después de cada partido y si pasa una semana sin hablar con él. Se activa solo al ponerle «Contactado» o «Negociando».</p>`}
+    :`<p class="muted" style="margin:0">Actívalo para seguirle como a un jugador de la agencia: sus partidos se buscan los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57 y te aviso después de cada partido y si pasa una semana sin hablar con él. Se activa solo al ponerle «Contactado» o «Negociando».</p>`}
     </section>${on?partidosPanel(c):""}`})()}
   <section class="panel"><div class="panel-h"><h3>Observaciones en partidos</h3><span class="muted small">${obs.length}</span></div>
     ${obs.length?`<div class="list">${obs.map(({pa,k})=>`<div class="li"><div class="li-main"><button class="linky" data-act="openPartido" data-id="${esc(pa.id)}">${esc(pa.local)} – ${esc(pa.visitante)}</button> <span class="pos">${esc(k.posicion||"")}</span><div class="li-s"><span class="mono">${fmtShort(pa.fecha)}</span> · ${esc(memberName(pa.captador))}${k.nota?" · "+esc(k.nota):""}</div></div></div>`).join("")}</div>`:`<p class="muted" style="margin:0">Sin observaciones. Márcalo en el campograma de un partido para que aparezcan aquí.</p>`}
@@ -2014,7 +2019,7 @@ async function onSubmit(form){
     await safe(()=>col("captacion_partidos").doc(p.id).update({marcadores:arr}),"Jugador marcado");render();return}
   if(kind==="marcadorEdit"){const p=S.partidos[nav.id];const arr=clone(p.marcadores||[]);const i=arr.findIndex(k=>k.id===S.pitchSel);if(i<0)return;Object.assign(arr[i],{equipo:d.equipo,dorsal:d.dorsal??"",nombre:d.nombre,posicion:d.posicion,nota:d.nota});clean();await safe(()=>col("captacion_partidos").doc(p.id).update({marcadores:arr}),"Guardado");render();return}
   if((kind==="nuevoCap"||kind==="capEdit")&&d.club){const eq=equipoPorNombre(d.club);if(eq){d.club=eq.n;if(!d.categoria&&eq.cat)d.categoria=eq.cat}}
-  if(kind==="nuevoCap"){if(!d.nombre)return toast("Falta el nombre.");const ref=col("captacion_jugadores").doc();clean();if(await safe(()=>ref.set(stamp({...d,estado:"Observado"})),"Ficha creada"))go("captacion",ref.id,"jug");return}
+  if(kind==="nuevoCap"){if(!d.nombre)return toast("Falta el nombre.");const ref=col("captacion_jugadores").doc();clean();if(await safe(()=>ref.set(stamp({...d,seguimientoActivo:d.seguimientoActivo===true,estado:"Observado"})),"Ficha creada"))go("captacion",ref.id,"jug");return}
   if(kind==="capEdit"){clean();await safe(()=>col("captacion_jugadores").doc(nav.id).update(stamp(d)),"Guardado");render();return}
   if(kind==="nuevoEquipo"){if(!d.nombre)return toast("Falta el nombre del club.");const ref=col("mercado_equipos").doc();clean();if(await safe(()=>ref.set(stamp({...d,categoria:S.f.mcat,contactos:[],mercados:{}})),"Equipo añadido"))go("mercado",ref.id);return}
   if(kind==="eqDatos"){const cs=Object.values(d.contactos||{}).filter(c=>c&&(c.nombre||c.telefono||c.cargo));const o={...d,contactos:cs};if(o.grupo!=null)o.grupo=String(o.grupo);clean();await safe(()=>col("mercado_equipos").doc(nav.id).update(stamp(o)),"Club guardado");render();return}
@@ -2204,6 +2209,7 @@ document.addEventListener("click",async e=>{
     case"newForm":clean();S.newForm=S.newForm===el.dataset.form?null:el.dataset.form;render();break;
     case"cancelNew":clean();S.newForm=null;render();break;
     case"cest":S.f.cest=el.dataset.v;render();break;
+    case"cseg":S.f.cseg=el.dataset.v;render();break;
     case"mcat":S.f.mcat=el.dataset.v;S.f.mgrupo="";S.newForm=null;render();break;
     case"arm":e.preventDefault();clean();arm(el.dataset.key);break;
     case"lchip":{if(Date.now()-S.suppressClick<450)break;const k=el.dataset.lchip;S.pickChip=S.pickChip===k?null:k;S.pitchDraft=null;S.pitchSel=null;render();break}
