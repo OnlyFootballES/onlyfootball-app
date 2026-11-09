@@ -516,7 +516,7 @@ function F(name,label,val,o={}){
   }else{
     inp=`<input id="${id}" name="${esc(name)}" type="${o.type||"text"}" value="${esc(val)}"${o.step?` step="${o.step}"`:""}${o.min!=null?` min="${o.min}"`:""}${ro} placeholder="${esc(o.ph||"")}"${o.type==="number"?' inputmode="decimal"':""}${o.type==="tel"?' inputmode="tel"':""} autocomplete="off">`;
   }
-  return`<div class="fld${o.span?" span":""}"><label for="${id}">${esc(label)}</label>${inp}</div>`;
+  return`<div class="fld${o.span?" span":""}"><label for="${id}">${esc(label)}</label>${inp}${o.hint?`<span class="muted small">${esc(o.hint)}</span>`:""}</div>`;
 }
 function readForm(form){
   const out={};
@@ -703,7 +703,7 @@ function viewInicio(){
     const cumple=jug.map(j=>({j,b:nextBday(j.fechaNac)})).filter(x=>x.b&&x.b.days<=30).sort((a,b)=>a.b.days-b.b.days);
     const hoyC=cumple.filter(x=>x.b.days===0);
     rows.push(row("cumple",ic.cumple,"Cumpleaños",cumple.length,hoyC.length?"Hoy: "+hoyC.map(x=>x.j.nombre).join(", "):cumple.length?"El próximo: "+cumple[0].j.nombre+(cumple[0].b.days===1?" mañana":" en "+cumple[0].b.days+" días"):"Ninguno en los próximos 30 días",hoyC.length?"warn":"",
-      cumple.length?`<div class="list">${cumple.map(({j,b})=>`<div class="li"><div class="li-main"><button class="linky" data-act="openJug" data-id="${esc(j.id)}" data-sub="cumple">${esc(j.nombre)}</button><div class="li-s">Cumple ${b.turns} · ${b.date.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}</div></div><span class="days"${b.days===0?' style="color:var(--warn)"':""}>${b.days===0?"¡hoy!":b.days===1?"mañana":"en "+b.days+" d"}</span>${b.days<=1&&j.telefono?`<a class="btn sm ghost" href="${esc(waLink(j.telefono,"¡Feliz cumpleaños, "+(j.apodo||String(j.nombre).split(" ")[0])+"! 🎉"))}" target="_blank" rel="noopener">Felicitar</a>`:""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Nadie de la agencia cumple años en el próximo mes.</p>`))}
+      cumple.length?`<div class="list">${cumple.map(({j,b})=>`<div class="li"><div class="li-main"><button class="linky" data-act="openJug" data-id="${esc(j.id)}" data-sub="info">${esc(j.nombre)}</button><div class="li-s">Cumple ${b.turns} · ${b.date.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}</div></div><span class="days"${b.days===0?' style="color:var(--warn)"':""}>${b.days===0?"¡hoy!":b.days===1?"mañana":"en "+b.days+" d"}</span>${b.days<=1&&j.telefono?`<a class="btn sm ghost" href="${esc(waLink(j.telefono,"¡Feliz cumpleaños, "+(j.apodo||String(j.nombre).split(" ")[0])+"! 🎉"))}" target="_blank" rel="noopener">Felicitar</a>`:""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Nadie de la agencia cumple años en el próximo mes.</p>`))}
   // 2. Tareas
   {const tt=misTareas().filter(t=>t.estado!=="hecha");const venc=tt.filter(t=>t.fecha&&t.fecha<hoy),dHoy=tt.filter(t=>t.fecha===hoy);
     const sem=new Date(toD(hoy).getTime()+7*864e5);const semS=sem.getFullYear()+"-"+pad(sem.getMonth()+1)+"-"+pad(sem.getDate());
@@ -809,12 +809,12 @@ function formNuevoJugador(){
 function viewJugador(){
   const j=S.jugadores[S.nav.id];const p=perms();
   if(!j||(p.jugadores==="suyos"&&!isMine(j)))return`<button class="back" data-act="tab" data-tab="jugadores">← Jugadores</button><div class="empty"><strong>Jugador no disponible</strong><span>Puede que se haya borrado o que no tengas acceso.</span></div>`;
-  const subs=[["info","Información"],["comunicaciones","Comunicaciones"],["cumple","Cumpleaños"]];
+  const subs=[["info","Información"],["comunicaciones","Comunicaciones"]];
   if(p.vencimientos||p.contratos)subs.push(["contrato","Contrato"]);
   let sub=S.nav.sub;if(!subs.some(s=>s[0]===sub))sub="info";
   const a=age(j.fechaNac);
   let body="";
-  if(sub==="info")body=jugInfo(j);else if(sub==="contrato")body=jugContrato(j);else if(sub==="cumple")body=jugCumple(j);else body=jugComunicaciones(j);
+  if(sub==="info")body=jugInfo(j);else if(sub==="contrato")body=jugContrato(j);else body=jugComunicaciones(j);
   return`<button class="back" data-act="tab" data-tab="jugadores">← Jugadores</button>
   <div class="head"><div class="head-l"><span class="eyebrow">${esc([j.posicion&&POS[j.posicion]||j.posicion,a!=null?a+" años":"",(j.responsables||[]).map(memberName).join(", ")].filter(Boolean).join(" · "))}</span><h1 class="row" style="gap:10px;flex-wrap:nowrap">${j.lesionado?CROSS:""}<span>${esc(String(j.nombre||"").replace(/\s*\((sub|SUB)\s*\d+\)\s*/,"").trim())}</span></h1>${isSub23(j)||j.lesionado?`<div class="tags">${isSub23(j)?`<span class="tag-sub">SUB 23</span>`:""}${j.lesionado?`<span class="tag-inj">Lesionado${j.lesion?" · "+esc(j.lesion):""}</span>`:""}</div>`:""}${j.nombreCompleto&&norm(j.nombreCompleto)!==norm(j.nombre)?`<div class="muted small">${esc(j.nombreCompleto)}</div>`:""}<div class="muted">${esc(j.club||"Sin club")}${j.categoria?" · "+esc(j.categoria):""}</div></div>
   <div class="row">${link(j.besoccer,"BeSoccer")}${j.besoccer&&j.transfermarkt?" · ":""}${link(j.transfermarkt,"Transfermarkt")}${(j.besoccer||j.transfermarkt)&&j.video?" · ":""}${link(j.video,"Vídeo")}</div></div>
@@ -864,7 +864,7 @@ function jugInfo(j){
       ${F("sub23","Sub 23",isSub23(j),{type:"check",ro})}${F("lesionado","Lesionado",!!j.lesionado,{type:"check",ro})}
       ${F("lesion","Lesión y baja prevista",j.lesion,{ro,span:true,ph:"Esguince de tobillo · 3 semanas"})}
       ${F("altura","Altura (cm)",j.altura,{type:"number",ro})}${F("nacionalidad","Nacionalidad",j.nacionalidad,{ro})}
-      ${F("fechaNac","Fecha de nacimiento",j.fechaNac,{type:"date",ro})}${F("telefono","Teléfono",j.telefono,{type:"tel",ro})}
+      ${F("fechaNac","Fecha de nacimiento",j.fechaNac,{type:"date",ro,hint:bdayHint(j.fechaNac)})}${F("telefono","Teléfono",j.telefono,{type:"tel",ro})}
       ${F("transfermarkt","Enlace Transfermarkt",j.transfermarkt,{ro,span:true})}${F("besoccer","Enlace BeSoccer del jugador",j.besoccer,{ro,span:true})}${F("video","Vídeo informe",j.video,{ro,span:true})}
       ${p.jugadores==="todos"?`<div class="fld span"><label>Responsables</label><div class="row">${membersSorted().map(m=>F("responsables[]",m.nombre,(j.responsables||[]).includes(m.id),{type:"check",value:m.id,vid:m.id,ro})).join("")}</div></div>`:""}
       ${F("notas","Notas internas",j.notas,{type:"textarea",span:true,ro})}
@@ -1149,17 +1149,11 @@ async function guardarLectura(jid,auto){
   if(ok){if(auto){L.guardado=true;L.busy=false}else delete S.lectura[jid]}
   render();
 }
-function jugCumple(j){
-  const ed=canEditJug(j);FK="jb";const b=nextBday(j.fechaNac);
-  return`<div class="grid2"><form class="panel" data-form="jugCumple" data-dirtytrack><div class="panel-h"><h3>Cumpleaños</h3></div>
-    ${b?`<div><div style="font-family:var(--f-display);font-size:2.6rem;font-weight:700;line-height:1">${b.days===0?"¡HOY!":b.days+" días"}</div><div class="muted">Cumple ${b.turns} años el ${b.date.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}</div></div>`:`<p class="muted" style="margin:0">Falta la fecha de nacimiento.</p>`}
-    <div class="form">${F("fechaNac","Fecha de nacimiento",j.fechaNac,{type:"date",ro:!ed})}${ed?`<div class="form-actions"><button class="btn primary">Guardar</button></div>`:""}</div></form>
-    ${genPanel(j,"cumple")}</div>`;
-}
+function bdayHint(f){const b=nextBday(f);if(!b)return"";return b.days===0?"¡Cumple "+b.turns+" años hoy!":"Cumple "+b.turns+" años el "+b.date.toLocaleDateString("es-ES",{day:"numeric",month:"long"})+(b.days===1?" (mañana)":" (en "+b.days+" días)")}
 function jugComunicaciones(j){
   const ed=canEditJug(j)||perms().jugadores==="ver";FK="jm";
   const seg=(j.seguimientos||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
-  return`<div class="grid2">${genPanel(j,"seguimiento")}
+  return`<div>
   <section class="panel"><div class="panel-h"><h3>Registro de seguimiento</h3><span class="muted small">${seg.length} contactos</span></div>
     ${ed?`<form data-form="segAdd" data-dirtytrack><div class="form">${F("fecha","Fecha",todayStr(),{type:"date"})}${F("canal","Canal","WhatsApp",{type:"select",opts:CANALES,empty:false})}${F("nota","Qué hablasteis","",{type:"textarea",span:true,rows:2,ph:"Cómo está, minutos, lesiones, ánimo…"})}<div class="form-actions"><button class="btn primary">Registrar contacto</button></div></div></form>`:""}
     ${seg.length?`<div class="list">${seg.slice(0,40).map(s=>`<div class="li"><div class="li-main"><div class="li-t"><span class="mono small">${fmtShort(s.fecha)}</span> · ${esc(s.canal)} <span class="muted small">· ${esc(memberName(s.autor))}</span></div>${s.nota?`<div class="li-s" style="white-space:pre-wrap">${esc(s.nota)}</div>`:""}</div>${(S.me.isOwner||s.autor===mySlug())?delBtn("seg:"+j.id+":"+s.id,"Quitar"):""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos registrados.</p>`}
