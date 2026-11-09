@@ -204,6 +204,11 @@ tfoot td{font-weight:600;border-bottom:0}
 .pitch .mk:focus{outline:none}
 .pitch .mk:focus circle{stroke:var(--accent);stroke-width:.8}
 .legend{display:flex;gap:14px;font-size:.82rem;color:var(--muted);flex-wrap:wrap}
+.ndot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 2px var(--surface);flex:none;vertical-align:middle}
+.card{position:relative}.card>.ndot{position:absolute;top:9px;right:9px}
+.nav button .ndot{margin-left:auto}
+.tabbar button{position:relative}.tabbar .ndot{position:absolute;top:3px;left:calc(50% + 7px)}
+.li-t .ndot{margin-right:6px}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:5px}
 
 .gen-out{min-height:140px;font-size:.95rem}
@@ -379,7 +384,7 @@ label.btn{position:relative}
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="shim.js?v=1792920974"></script>
+<script src="shim.js?v=1794254777"></script>
 <script>
 /* ===================== Constantes ===================== */
 const CATS=[
@@ -412,6 +417,8 @@ const OBJETIVOS=[
   ["docs","Recordar documentación o renovación"],
   ["libre","Mensaje libre según el contexto"]
 ];
+const AVISOS=[["60","1 hora antes"],["30","30 minutos antes"],["120","2 horas antes"],["1440","El día antes"],["0","Sin aviso"]];
+function avisoTxt(v){const a=AVISOS.find(x=>x[0]===String(v));return a?a[1]:""}
 const TONOS=["Cercano","Profesional","Motivador","Serio"];
 const PERM_JUG=[["none","Sin acceso"],["ver","Ver todos (solo lectura)"],["suyos","Solo sus jugadores"],["todos","Todos (editar)"]];
 const PERM_NONE={jugadores:"none",vencimientos:false,contratos:false,captacion:false,mercado:false};
@@ -482,6 +489,31 @@ function perms(){if(S.me.isOwner)return PERM_ALL;const m=myMember();if(!m||m.act
 function memberName(id){return(S.miembros[id]&&S.miembros[id].nombre)||id||"—"}
 function membersSorted(){return Object.values(S.miembros).sort((a,b)=>(a.orden??99)-(b.orden??99)||String(a.nombre).localeCompare(b.nombre))}
 function isMine(j){const s=mySlug();return!!s&&Array.isArray(j.responsables)&&j.responsables.includes(s)}
+/* ----- Novedades (punto rojo) ----- */
+const NDOT='<span class="ndot" role="img" aria-label="Novedad"></span>';
+function esNuevo(c,d){if(!d||!d._mod||!S.vistos||!S.me.id)return false;if(d._mod.por===S.me.id)return false;const v=(S.vistos.v||{})[c+"|"+d.id]||S.vistos.desde||"";return String(d._mod.t)>String(v)}
+function novJug(j){return esNuevo("jugadores",j)||esNuevo("privado/contratos/items",S.contratos&&S.contratos[j.id])}
+function novCap(c){return esNuevo("captacion_jugadores",c)}
+function novPar(p){return esNuevo("captacion_partidos",p)}
+function novEq(e){return esNuevo("mercado_equipos",e)}
+function novTarea(t){return esNuevo("tareas",t)||(S.tVistas&&S.tVistas.has(t.id))}
+function navNov(k){if(!S.vistos)return false;
+  if(k==="jugadores")return visibleJugadores().some(novJug);
+  if(k==="captacion")return Object.values(S.capJug||{}).some(novCap);
+  if(k==="partidos")return Object.values(S.partidos||{}).some(novPar);
+  if(k==="mercado")return Object.values(S.equipos||{}).some(novEq);
+  if(k==="tareas")return misTareas().some(t=>esNuevo("tareas",t));
+  return false}
+let vQ={},vT=null;
+function marcarVisto(c,d){if(!d||!esNuevo(c,d))return;const k=c+"|"+d.id;const t=d._mod.t;S.vistos.v=S.vistos.v||{};S.vistos.v[k]=t;vQ[k]=t;clearTimeout(vT);
+  vT=setTimeout(()=>{const q=vQ;vQ={};S.db.doc("vistos/"+S.me.id).update({v:q}).catch(e=>console.warn("vistos",e))},700)}
+function autoVisto(){const n=S.nav;if(!S.vistos)return;
+  if(n.tab==="jugadores"&&n.id){marcarVisto("jugadores",S.jugadores[n.id]);marcarVisto("privado/contratos/items",S.contratos&&S.contratos[n.id])}
+  if(n.tab==="captacion"&&n.id)marcarVisto("captacion_jugadores",S.capJug[n.id]);
+  if(n.tab==="partidos"&&n.id)marcarVisto("captacion_partidos",S.partidos[n.id]);
+  if(n.tab==="mercado"){if(n.id)marcarVisto("mercado_equipos",S.equipos[n.id]);else if(S._mDocSel)marcarVisto("mercado_equipos",S._mDocSel)}
+  if(n.tab==="tareas"){S.tVistas=S.tVistas||new Set();misTareas().forEach(t=>{if(esNuevo("tareas",t)){S.tVistas.add(t.id);marcarVisto("tareas",t)}})}
+}
 function visibleJugadores(){const p=perms();if(!p||p.jugadores==="none")return[];const all=Object.values(S.jugadores);return p.jugadores==="suyos"?all.filter(isMine):all}
 function canEditJug(j){const p=perms();if(!p)return false;if(p.jugadores==="todos")return true;if(p.jugadores==="suyos")return!j||isMine(j);return false}
 function mercadoActual(){const c=S.config||DEFAULT_CONFIG;const id=c.mercadoActual||DEFAULT_CONFIG.mercadoActual;const m=(c.mercados||[]).find(x=>x.id===id);return{id,nombre:m?m.nombre:id}}
@@ -549,7 +581,7 @@ function navItems(){
 function renderNav(){
   const items=perms()?navItems():[];
   const cur=S.nav.tab;
-  const btns=items.map(([k,l])=>`<button data-act="tab" data-tab="${k}"${cur===k?' aria-current="page"':""}>${ICON[k]}<span>${l}</span></button>`).join("");
+  const btns=items.map(([k,l])=>`<button data-act="tab" data-tab="${k}"${cur===k?' aria-current="page"':""}>${ICON[k]}<span>${l}</span>${navNov(k)?NDOT:""}</button>`).join("");
   const m=myMember();
   const who=S.me.isOwner?(m?m.nombre:"Propietario"):(m?m.nombre:"");
   document.getElementById("side").innerHTML=`
@@ -567,10 +599,11 @@ function render(){
   main.innerHTML=mtop+`<div class="banner" id="pendingBar" hidden><span>Otra persona ha actualizado datos mientras editabas.</span><button class="btn sm" data-act="refresh">Ver cambios (descarta lo no guardado)</button></div>`+html;
   if(S.pending)showPending();
   if(S.nav.tab==="dossier")fitPages();
+  try{autoVisto()}catch(e){console.warn(e)}
 }
 function fitPages(){document.querySelectorAll(".pg-holder").forEach(h=>{const w=h.clientWidth;const s=Math.min(1,w/794);const pg=h.firstElementChild;if(pg){pg.style.transform=`scale(${s})`;h.style.height=Math.ceil(1123*s)+"px"}})}
 window.addEventListener("resize",()=>{if(S.nav.tab==="dossier")fitPages()});
-function go(tab,id=null,sub=null){clean();if(tab!=="jugadores")S.selMode=false;S.nav={tab,id,sub};S.pitchDraft=null;S.pitchSel=null;S.pickChip=null;S.newForm=null;S.armed=null;render();window.scrollTo(0,0)}
+function go(tab,id=null,sub=null){clean();if(tab!=="tareas")S.tVistas=null;if(tab!=="jugadores")S.selMode=false;S.nav={tab,id,sub};S.pitchDraft=null;S.pitchSel=null;S.pickChip=null;S.newForm=null;S.armed=null;render();window.scrollTo(0,0)}
 
 /* ===================== Vistas ===================== */
 function view(){
@@ -727,19 +760,6 @@ function viewInicio(){
     items.sort((a,b)=>a.d-b.d);const vencidos=items.filter(x=>x.d<0);
     rows.push(row("cont",ic.cont,"Contratos",items.length,vencidos.length?vencidos.length+" vencidos · "+(items.length-vencidos.length)+" por vencer":items.length?items.length+" vencen pronto":"Ninguno vencido ni a punto de vencer",vencidos.length?"bad":items.length?"warn":"",
       items.length?`<div class="list">${items.map(({j,d,txt,tipo})=>`<div class="li"><div class="li-main"><button class="linky" data-act="openJug" data-id="${esc(j.id)}" data-sub="contrato">${esc(j.nombre)}</button> <span class="pill">${tipo}</span><div class="li-s">${esc(txt)}</div></div><span class="pill ${d<0?"bad":"warn"}">${d<0?"Vencido":d+" d"}</span></div>`).join("")}</div>`:`<p class="muted" style="margin:0">Ningún contrato vencido ni a punto de vencer (agencia: 4 meses; club: esta temporada).</p>`))}
-  // 5. Avisos de la jornada (solo si hay algo)
-  if(p.jugadores!=="none"){
-    const av=[];visibleJugadores().forEach(j=>{const pm=ultimoPartido(j);const txt=[];let nivel="warn";
-      if(pm&&daysBetween(pm.fecha,hoy)<=8){if(pm.roja!=null&&pm.roja!==""){txt.push("Expulsado: "+rojaTxt(pm).toLowerCase()+". Probable sanción");nivel="bad"}
-        if(pm.lesion){txt.push("Lesión en el partido: "+pm.lesion);nivel="bad"}
-        if(pm.estado==="no_convocado")txt.push("No convocado")}
-      if(j.lesionado&&!(pm&&pm.lesion)){txt.push("Marcado como lesionado");nivel="bad"}
-      if(txt.length)av.push({j,pm:pm&&daysBetween(pm.fecha,hoy)<=8?pm:null,txt,nivel})});
-    av.sort((a,b)=>(a.nivel==="bad"?0:1)-(b.nivel==="bad"?0:1)||String(a.j.nombre).localeCompare(b.j.nombre,"es"));
-    if(av.length){const nb=av.filter(x=>x.nivel==="bad").length;
-      rows.push(row("avisos",ic.avisos,"Avisos de la jornada",av.length,av.slice(0,2).map(x=>x.j.nombre+" ("+x.txt[0].split(":")[0].split(".")[0].toLowerCase()+")").join(" · ")+(av.length>2?" y "+(av.length-2)+" más":""),nb?"bad":"warn",
-        `<div class="list">${av.map(({j,pm,txt,nivel})=>`<div class="li"><div class="li-main"><button class="linky" data-act="openJug" data-id="${esc(j.id)}">${esc(j.nombre)}</button>${txt.map(t=>`<div class="li-s" style="color:var(--${nivel==="bad"?"bad":"warn"})">${esc(t)}</div>`).join("")}${pm?`<div class="li-s">${resTag(pm)}<span class="mono">${esc(pm.resultado||"")}</span> ${pm.local===false?"en":"vs"} ${esc(pm.rival||"")} · ${esc(fmtShort(pm.fecha))}</div>`:""}</div>${j.telefono?`<a class="btn sm ghost" href="${esc(waLink(j.telefono))}" target="_blank" rel="noopener">WhatsApp</a>`:""}</div>`).join("")}</div>`))}
-  }
   // 6. Esta semana: partidos a los que vamos y acreditaciones
   if(p.captacion){
     const sem=new Date(toD(hoy).getTime()+7*864e5);const semS=sem.getFullYear()+"-"+pad(sem.getMonth()+1)+"-"+pad(sem.getDate());
@@ -759,7 +779,7 @@ function jugCard(j,p,hoy){
   const eq=j.equipo||{};const u=eq.ultimo||{};const x=eq.proximo||{};const sel=S.selMode&&S.sel.includes(j.id);
   const coach=isCoach(j),sub=isSub23(j),inj=!!j.lesionado;
   const nm=String(j.nombre||"").replace(/\s*\((sub|SUB)\s*\d+\)\s*/,"").trim();
-  return`<button class="card${sel?" sel":""}${coach?" coach":""}${inj?" hurt":""}" data-act="${S.selMode?"selJug":"openJug"}" data-id="${esc(j.id)}"${S.selMode?` aria-pressed="${sel}"`:""}>
+  return`<button class="card${sel?" sel":""}${coach?" coach":""}${inj?" hurt":""}" data-act="${S.selMode?"selJug":"openJug"}" data-id="${esc(j.id)}"${S.selMode?` aria-pressed="${sel}"`:""}>${novJug(j)?NDOT:""}
     <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">${S.selMode?`<span class="tick">${sel?"✓":""}</span>`:""}${inj?CROSS:""}<span class="card-t grow">${esc(nm)}</span>${coach?`<span class="pos role">ENTRENADOR</span>`:j.posicion?`<span class="pos">${esc(j.posicion)}</span>`:""}</div>
     ${sub||inj?`<div class="tags">${sub?`<span class="tag-sub">SUB 23</span>`:""}${inj?`<span class="tag-inj">Lesionado</span>`:""}</div>`:""}
     <div class="card-m">${esc(j.club||"Sin club")}${j.categoria?" · "+esc(j.categoria):""}${a!=null?" · "+a+" años":""}</div>
@@ -1490,7 +1510,8 @@ function esEntrenador(c){return c&&(c.tipo==="Entrenador"||c.posicion==="ENT")}
 function nuestrosEn(p){const ks=[teamKey(p.local||""),teamKey(p.visitante||"")];return Object.values(S.jugadores).filter(j=>{const k=teamKey((j.equipo&&j.equipo.nombre)||j.club||"");const ks2=j.equipoSuperior&&j.equipoSuperior.nombre?teamKey(j.equipoSuperior.nombre):"";return(k&&ks.includes(k))||(ks2&&ks.includes(ks2))})}
 /* ----- Tareas: apuntes personales, con dictado por voz y sincronización con Google Calendar ----- */
 const DIAS_ES=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
-function misTareas(){const me=mySlug();return Object.values(S.tareas||{}).filter(t=>t.estado!=="borrada"&&(t.autor===me||(S.me.isOwner&&S.f.tTodas)))}
+function misTareas(){const me=mySlug();return Object.values(S.tareas||{}).filter(t=>t.estado!=="borrada"&&(t.autor===me||(me&&(t.compartidos||[]).includes(me))||(S.me.isOwner&&S.f.tTodas)))}
+function tareaGente(t){const me=mySlug();const sh=(t.compartidos||[]).filter(x=>x!==me);const out=[];if(t.autor&&t.autor!==me)out.push("De "+memberName(t.autor));if(sh.length)out.push((t.autor===me?"Compartida con ":"También con ")+sh.map(memberName).join(", "));return out.join(" · ")}
 function tareaCuando(t){if(!validDate(t.fecha))return"Sin fecha";const d=toD(t.fecha);return d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"short"})+(t.hora?" · "+t.hora:"")}
 function gcalLink(t){if(!validDate(t.fecha))return"";const f=t.fecha.replace(/-/g,"");let dates;
   if(t.hora&&/^\d{1,2}:\d{2}$/.test(t.hora)){const [h,m]=t.hora.split(":").map(Number);const ini=new Date(2000,0,1,h,m);const fin=new Date(ini.getTime()+(Number(t.duracion)||60)*60000);const hh=x=>pad(x.getHours())+pad(x.getMinutes())+"00";dates=f+"T"+hh(ini)+"/"+f+"T"+hh(fin)}
@@ -1503,10 +1524,10 @@ function viewTareas(){
   const hechas=all.filter(t=>t.estado==="hecha").sort((a,b)=>String(b.hechaEl||b.fecha||"").localeCompare(String(a.hechaEl||a.fecha||""))).slice(0,20);
   const grupos=[["Atrasadas",pend.filter(t=>t.fecha&&t.fecha<hoy)],["Hoy",pend.filter(t=>t.fecha===hoy)],["Próximas",pend.filter(t=>t.fecha&&t.fecha>hoy)],["Sin fecha",pend.filter(t=>!t.fecha)]];
   const dict=S.dictado||{};FK="td";
-  const card=t=>`<div class="li tarea${t.estado==="hecha"?" hecha":""}"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="${t.estado==="hecha"?"Marcar como pendiente":"Marcar como hecha"}">${t.estado==="hecha"?"✓":""}</button>
-    <div class="li-main"><div class="li-t">${esc(t.titulo)}</div><div class="li-s">${esc(tareaCuando(t))}${t.lugar?" · "+esc(t.lugar):""}${t.con?" · con "+esc(t.con):""}</div>${t.notas?`<div class="li-s" style="white-space:pre-wrap">${esc(t.notas)}</div>`:""}
-    <div class="row" style="gap:6px;margin-top:4px">${t.estado!=="hecha"?gcalPill(t):""}${t.estado!=="hecha"&&t.fecha&&(t.gcal||{}).estado!=="creado"?`<a class="btn sm ghost" href="${esc(gcalLink(t))}" target="_blank" rel="noopener">Añadir ya a Google Calendar</a>`:""}${S.f.tTodas&&t.autor!==mySlug()?`<span class="muted small">${esc(memberName(t.autor))}</span>`:""}</div></div>
-    ${delBtn("tarea:"+t.id,"Quitar")}</div>`;
+  const card=t=>{const gente=tareaGente(t);const mia=t.autor===mySlug()||S.me.isOwner;return`<div class="li tarea${t.estado==="hecha"?" hecha":""}"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="${t.estado==="hecha"?"Marcar como pendiente":"Marcar como hecha"}">${t.estado==="hecha"?"✓":""}</button>
+    <div class="li-main"><div class="li-t">${novTarea(t)?NDOT:""}${esc(t.titulo)}</div><div class="li-s">${esc(tareaCuando(t))}${t.hora&&Number(t.aviso)?" · aviso "+esc(avisoTxt(t.aviso)):""}</div>${gente?`<div class="li-s">${esc(gente)}</div>`:""}
+    <div class="row" style="gap:6px;margin-top:4px">${t.estado!=="hecha"?gcalPill(t):""}${t.estado!=="hecha"&&t.fecha&&(t.gcal||{}).estado!=="creado"?`<a class="btn sm ghost" href="${esc(gcalLink(t))}" target="_blank" rel="noopener">Añadir ya a Google Calendar</a>`:""}</div></div>
+    ${mia?delBtn("tarea:"+t.id,"Quitar"):""}</div>`};
   const rec=window.SpeechRecognition||window.webkitSpeechRecognition;
   return`<div class="head"><div class="head-l"><span class="eyebrow">Lo que tienes que hacer</span><h1>Tareas</h1></div>${S.me.isOwner?`<label class="check"><input type="checkbox" id="t_todas" data-act-change="tTodas"${f.tTodas?" checked":""}><span>Ver las de todos</span></label>`:""}</div>
   <section class="panel dictado"><div class="panel-h"><h3>Nueva tarea</h3><span class="muted small">Dila o escríbela como te salga</span></div>
@@ -1515,8 +1536,9 @@ function viewTareas(){
     <button type="button" class="btn primary" data-act="tInterpretar"${dict.busy?" disabled":""}>${dict.busy?"Leyendo…":"Apuntar"}</button></div>
     ${dict.err?`<div class="callout warn">${esc(dict.err)}</div>`:""}
     ${dict.prop?`<form class="panel" data-form="tNueva" data-dirtytrack style="background:var(--surface-2)"><div class="panel-h"><h3>¿Es así?</h3></div><div class="form">
-      ${F("titulo","Tarea",dict.prop.titulo,{span:true})}${F("fecha","Fecha",dict.prop.fecha,{type:"date"})}${F("hora","Hora",dict.prop.hora,{ph:"Vacío = todo el día"})}${F("lugar","Lugar",dict.prop.lugar)}${F("con","Con quién",dict.prop.con)}
-      ${F("aviso","Aviso",String(dict.prop.aviso||60),{type:"select",opts:[["60","1 hora antes"],["30","30 minutos antes"],["120","2 horas antes"],["1440","El día antes"],["0","Sin aviso"]],empty:false})}${F("notas","Notas",dict.prop.notas,{type:"textarea",span:true,rows:2})}
+      ${F("titulo","Tarea",dict.prop.titulo,{span:true})}${F("fecha","Fecha",dict.prop.fecha,{type:"date"})}${F("hora","Hora",dict.prop.hora,{ph:"Vacío = todo el día"})}
+      ${F("aviso","Aviso",String(dict.prop.aviso??60),{type:"select",opts:AVISOS,empty:false})}
+      <div class="fld span"><label>Compartir con</label><div class="row">${membersSorted().filter(m=>m.id!==mySlug()&&m.activo!==false).map(m=>F("compartidos[]",m.nombre,(dict.prop.compartidos||[]).includes(m.id),{type:"check",value:m.id,vid:m.id})).join("")||'<span class="muted small">No hay nadie más en la agencia todavía.</span>'}</div></div>
       <div class="form-actions"><button type="button" class="btn ghost" data-act="tDescartar">Descartar</button><button class="btn primary">Guardar tarea</button></div></div></form>`:""}
   </section>
   ${grupos.map(([g,arr])=>arr.length?`<section class="pgroup"><div class="pgroup-h"><h2>${g}</h2><span class="mono muted">${arr.length}</span></div><div class="panel"><div class="list">${arr.map(card).join("")}</div></div></section>`:"").join("")}
@@ -1527,12 +1549,12 @@ async function tInterpretar(){
   const ta=document.getElementById("t_texto");const texto=(ta&&ta.value||"").trim();const d=S.dictado||(S.dictado={});d.texto=texto;
   if(!texto){toast("Di o escribe la tarea.");return}
   const hoy=todayStr();const dow=DIAS_ES[toD(hoy).getDay()];
-  const fallback=()=>({titulo:texto.charAt(0).toUpperCase()+texto.slice(1),fecha:"",hora:"",lugar:"",con:"",notas:"",aviso:60});
+  const fallback=()=>({titulo:texto.charAt(0).toUpperCase()+texto.slice(1),fecha:"",hora:"",aviso:60,compartidos:[]});
   if(!S.sample){d.prop=fallback();render();return}
   d.busy=true;d.err="";render();
-  const prompt=`Hoy es ${dow} ${hoy} (zona horaria Europe/Madrid). Convierte esta nota dictada por un agente de fútbol en una tarea. Devuelve SOLO un JSON con estas claves: "titulo" (corto y claro, en español, empezando por la acción: p. ej. "Reunión con Paco"), "fecha" (YYYY-MM-DD; "el próximo martes" = el primer martes después de hoy; si no se dice fecha, ""), "hora" (HH:MM en 24 h; "por la mañana" = "10:00", "por la tarde" = "17:00", "a mediodía" = "13:00"; si no se dice, ""), "lugar" (o ""), "con" (personas, o ""), "notas" (cualquier otro detalle útil, o ""). No inventes nada que no esté en la nota.\n\nNota: """${texto}"""`;
+  const prompt=`Hoy es ${dow} ${hoy} (zona horaria Europe/Madrid). Convierte esta nota dictada por un agente de fútbol en una tarea. Devuelve SOLO un JSON con estas claves: "titulo" (corto y claro, en español, empezando por la acción e incluyendo con quién y dónde si se dice: p. ej. "Reunión con Paco en Cartagena"), "fecha" (YYYY-MM-DD; "el próximo martes" = el primer martes después de hoy; si no se dice fecha, ""), "hora" (HH:MM en 24 h; "por la mañana" = "10:00", "por la tarde" = "17:00", "a mediodía" = "13:00"; si no se dice, ""). No inventes nada que no esté en la nota.\n\nNota: """${texto}"""`;
   try{const r=await S.sample(prompt,{cache:false});const m=String(r.text||"").match(/\{[\s\S]*\}/);const o=m?JSON.parse(m[0]):null;
-    d.prop=o&&o.titulo?{titulo:o.titulo,fecha:validDate(o.fecha)?o.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(o.hora||"")?o.hora.padStart(5,"0"):"",lugar:o.lugar||"",con:o.con||"",notas:o.notas||"",aviso:60}:fallback()}
+    d.prop=o&&o.titulo?{titulo:o.titulo,fecha:validDate(o.fecha)?o.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(o.hora||"")?o.hora.padStart(5,"0"):"",aviso:60,compartidos:[]}:fallback()}
   catch(e){console.error(e);d.err="No he podido interpretarla sola; revisa los datos y guárdala.";d.prop=fallback()}
   d.busy=false;render();
 }
@@ -1614,7 +1636,7 @@ function listaPartidos(){
   const list=Object.values(S.partidos).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   const hoy=todayStr();
   const prox=list.filter(p=>p.fecha>=hoy).sort((a,b)=>(a.fecha+(a.hora||"")).localeCompare(b.fecha+(b.hora||""))),pas=list.filter(p=>!(p.fecha>=hoy));
-  const card=p=>{const al=p.alineaciones||{};return`<div class="card pcard"><button class="pcard-open" data-act="openPartido" data-id="${esc(p.id)}"><span class="eyebrow">${fmtDate(p.fecha)}${p.hora?" · "+esc(p.hora):""}${p.categoria?" · "+esc(p.categoria):""}</span><span class="card-t">${esc(p.local||"Local")} – ${esc(p.visitante||"Visitante")}</span><div class="card-f"><span class="pill acc">${(p.marcadores||[]).length} marcados</span>${(()=>{const n=nuestrosEn(p);return n.length?`<span class="pill ok" title="${esc(n.map(j=>j.nombre).join(", "))}">${n.length===1?esc(n[0].nombre):n.length+" nuestros"}</span>`:""})()}${al.fuente==="confirmadas"?`<span class="pill ok">Alineaciones</span>`:al.fuente==="plantilla"?`<span class="pill">Plantillas</span>`:""}<span class="card-m">${esc(memberName(p.captador))}</span></div></button><div class="pcard-del">${delBtn("partido:"+p.id,"Quitar partido")}</div></div>`};
+  const card=p=>{const al=p.alineaciones||{};return`<div class="card pcard">${novPar(p)?NDOT:""}<button class="pcard-open" data-act="openPartido" data-id="${esc(p.id)}"><span class="eyebrow">${fmtDate(p.fecha)}${p.hora?" · "+esc(p.hora):""}${p.categoria?" · "+esc(p.categoria):""}</span><span class="card-t">${esc(p.local||"Local")} – ${esc(p.visitante||"Visitante")}</span><div class="card-f"><span class="pill acc">${(p.marcadores||[]).length} marcados</span>${(()=>{const n=nuestrosEn(p);return n.length?`<span class="pill ok" title="${esc(n.map(j=>j.nombre).join(", "))}">${n.length===1?esc(n[0].nombre):n.length+" nuestros"}</span>`:""})()}${al.fuente==="confirmadas"?`<span class="pill ok">Alineaciones</span>`:al.fuente==="plantilla"?`<span class="pill">Plantillas</span>`:""}<span class="card-m">${esc(memberName(p.captador))}</span></div></button><div class="pcard-del">${delBtn("partido:"+p.id,"Quitar partido")}</div></div>`};
   return nf+(list.length?`${prox.length?`<section class="pgroup"><div class="pgroup-h"><h2>Próximos</h2><span class="mono muted">${prox.length}</span></div><div class="grid3">${prox.map(card).join("")}</div></section>`:""}${pas.length?`<section class="pgroup"><div class="pgroup-h"><h2>Vistos</h2><span class="mono muted">${pas.length}</span></div><div class="grid3">${pas.map(card).join("")}</div></section>`:""}`:`<div class="empty"><strong>Sin partidos</strong><span>Elige un partido del calendario y asigna quién lo ve. La hora y las plantillas se cargan solas en la revisión de la mañana.</span></div>`);
 }
 
@@ -1638,7 +1660,7 @@ function listaCapJug(){
   <div class="chips" role="group" aria-label="Seguimiento"><button class="chip" aria-pressed="${!f.cseg}" data-act="cseg" data-v="">Todos</button><button class="chip" aria-pressed="${f.cseg==="si"}" data-act="cseg" data-v="si" title="Se buscan sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57">SEGUIMIENTO AL MINUTO <span class="n">${nSeg}</span></button><button class="chip" aria-pressed="${f.cseg==="no"}" data-act="cseg" data-v="no">SOLO NOS GUSTA <span class="n">${nNo}</span></button></div>
   <div class="toolbar"><label class="search">${ICON.search}<input id="q_cap" data-filter="cq" type="search" placeholder="Buscar por nombre, club o agente" value="${esc(f.cq)}" aria-label="Buscar en captación"></label>
   <select data-filter="ccap" id="fl_ccap" aria-label="Captador"><option value="">Todos los captadores</option>${membersSorted().map(m=>`<option value="${esc(m.id)}"${f.ccap===m.id?" selected":""}>${esc(m.nombre)}</option>`).join("")}</select></div>
-  ${list.length?`<div class="grid3">${list.map(c=>`<button class="card${esEntrenador(c)?" coach":""}" data-act="openCap" data-id="${esc(c.id)}"><div class="row" style="justify-content:space-between"><span class="card-t">${esc(c.nombre)}</span>${esEntrenador(c)?`<span class="pos role">ENTRENADOR</span>`:c.posicion?`<span class="pos">${esc(c.posicion)}</span>`:""}</div><div class="card-m">${esc([c.club,c.anio?"Año "+c.anio:""].filter(Boolean).join(" · ")||"Sin club")}</div><div class="card-f"><span class="pill ${EST_CAP_TONE[c.estado||"Observado"]}">${esc(c.estado||"Observado")}</span>${capSeg(c)?(()=>{const due=contactoDue(c,todayStr());return due?`<span class="pill ${due.nivel}">${due.tipo==="partido"?"Escríbele tras el partido":due.d===null?"Sin contactos":"Contacto hace "+due.d+" d"}</span>`:`<span class="pill ok">Contacto al día</span>`})():""}${c.tieneAgente==="Sí"?`<span class="pill ${c.firmadoAgente==="Sí"?"bad":"warn"}">${c.firmadoAgente==="Sí"?"Firmado con agente":"Tiene agente"}</span>`:c.tieneAgente==="No"?`<span class="pill ok">Sin agente</span>`:""}${stars(c.valoracion)}</div><div class="card-m">${esc(memberName(c.captador))}</div></button>`).join("")}</div>`:`<div class="empty"><strong>${Object.keys(S.capJug).length?"Ningún jugador coincide":"Sin jugadores en captación"}</strong><span>Se crean solos al marcarlos en un partido, o añádelos a mano.</span></div>`}`;
+  ${list.length?`<div class="grid3">${list.map(c=>`<button class="card${esEntrenador(c)?" coach":""}" data-act="openCap" data-id="${esc(c.id)}">${novCap(c)?NDOT:""}<div class="row" style="justify-content:space-between"><span class="card-t">${esc(c.nombre)}</span>${esEntrenador(c)?`<span class="pos role">ENTRENADOR</span>`:c.posicion?`<span class="pos">${esc(c.posicion)}</span>`:""}</div><div class="card-m">${esc([c.club,c.anio?"Año "+c.anio:""].filter(Boolean).join(" · ")||"Sin club")}</div><div class="card-f"><span class="pill ${EST_CAP_TONE[c.estado||"Observado"]}">${esc(c.estado||"Observado")}</span>${capSeg(c)?(()=>{const due=contactoDue(c,todayStr());return due?`<span class="pill ${due.nivel}">${due.tipo==="partido"?"Escríbele tras el partido":due.d===null?"Sin contactos":"Contacto hace "+due.d+" d"}</span>`:`<span class="pill ok">Contacto al día</span>`})():""}${c.tieneAgente==="Sí"?`<span class="pill ${c.firmadoAgente==="Sí"?"bad":"warn"}">${c.firmadoAgente==="Sí"?"Firmado con agente":"Tiene agente"}</span>`:c.tieneAgente==="No"?`<span class="pill ok">Sin agente</span>`:""}${stars(c.valoracion)}</div><div class="card-m">${esc(memberName(c.captador))}</div></button>`).join("")}</div>`:`<div class="empty"><strong>${Object.keys(S.capJug).length?"Ningún jugador coincide":"Sin jugadores en captación"}</strong><span>Se crean solos al marcarlos en un partido, o añádelos a mano.</span></div>`}`;
 }
 function zonaPos(x,y){
   const side=x<17?"I":x>51?"D":"C";
@@ -1842,14 +1864,14 @@ function viewMercado(){
   const cat=MCATS.find(c=>c.id===f.mcat)||null;
   const grs=cat?mGrupos(cat):[];const gr=cat?(cat.tipo==="none"?grs[0]:grs.find(x=>x.v===f.mgrupo)||null):null;
   const eqs=gr?mEquipos(cat,gr):[];const eqSel=f.meq&&gr?f.meq:"";
-  const doc=eqSel?mDoc(cat,gr,eqSel):null;const mm=(doc&&doc.mercados&&doc.mercados[cur.id])||{};
+  const doc=eqSel?mDoc(cat,gr,eqSel):null;S._mDocSel=doc;const RD="🔴 ";const mm=(doc&&doc.mercados&&doc.mercados[cur.id])||{};
   const gLbl=cat?(cat.tipo==="comunidad"?"Comunidad":"Grupo"):"Grupo";
   const loaded=gr&&gr.gid&&S.calendario[gr.gid];
   FK="mk";
   const linea=`<div class="mline">
-    <div class="fld"><label for="m_cat">Categoría</label><select id="m_cat" data-act-change="mCat"><option value="">— Elige —</option>${MCATS.map(c=>`<option value="${c.id}"${cat&&c.id===cat.id?" selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
-    ${cat&&cat.tipo!=="none"?`<div class="fld"><label for="m_gr">${gLbl}</label><select id="m_gr" data-act-change="mGr"><option value="">— Elige —</option>${grs.map(g=>`<option value="${esc(g.v)}"${gr&&g.v===gr.v?" selected":""}>${esc(g.l)}</option>`).join("")}</select></div>`:""}
-    ${gr?`<div class="fld grow"><label for="m_eq">Equipo</label><select id="m_eq" data-act-change="mEq"><option value="">${eqs.length?"— Elige —":"Sin equipos cargados"}</option>${eqs.map(e=>`<option${e.n===eqSel?" selected":""}>${esc(e.n)}</option>`).join("")}${eqSel&&!eqs.some(e=>e.n===eqSel)?`<option selected>${esc(eqSel)}</option>`:""}<option value="__otro">+ Otro equipo…</option></select></div>${eqSel?`<button class="btn" data-act="mHist" aria-pressed="${!!f.mhist}">${f.mhist?"Ocultar historial":"Historial"}</button>`:""}`:""}
+    <div class="fld"><label for="m_cat">Categoría</label><select id="m_cat" data-act-change="mCat"><option value="">— Elige —</option>${MCATS.map(c=>`<option value="${c.id}"${cat&&c.id===cat.id?" selected":""}>${Object.values(S.equipos||{}).some(e=>e.categoria===c.id&&novEq(e))?RD:""}${esc(c.nombre)}</option>`).join("")}</select></div>
+    ${cat&&cat.tipo!=="none"?`<div class="fld"><label for="m_gr">${gLbl}</label><select id="m_gr" data-act-change="mGr"><option value="">— Elige —</option>${grs.map(g=>`<option value="${esc(g.v)}"${gr&&g.v===gr.v?" selected":""}>${mEquipos(cat,g).some(e=>novEq(mDoc(cat,g,e.n)))?RD:""}${esc(g.l)}</option>`).join("")}</select></div>`:""}
+    ${gr?`<div class="fld grow"><label for="m_eq">Equipo</label><select id="m_eq" data-act-change="mEq"><option value="">${eqs.length?"— Elige —":"Sin equipos cargados"}</option>${eqs.map(e=>`<option value="${esc(e.n)}"${e.n===eqSel?" selected":""}>${novEq(mDoc(cat,gr,e.n))?RD:""}${esc(e.n)}</option>`).join("")}${eqSel&&!eqs.some(e=>e.n===eqSel)?`<option selected>${esc(eqSel)}</option>`:""}<option value="__otro">+ Otro equipo…</option></select></div>${eqSel?`<button class="btn" data-act="mHist" aria-pressed="${!!f.mhist}">${f.mhist?"Ocultar historial":"Historial"}</button>`:""}`:""}
   </div>`;
   let body="";
   if(gr&&!eqs.length&&!loaded)body=`<div class="callout">Los equipos de ${esc(gr.l||cat.nombre)} se están cargando desde BeSoccer (tarda como mucho un día). Mientras, puedes elegir «+ Otro equipo…» y escribir el nombre.</div>`;
@@ -1966,7 +1988,7 @@ async function onSubmit(form){
   if(kind==="segAdd"){const j=S.jugadores[nav.id];const seg=clone(j.seguimientos||[]);seg.unshift({id:uid(),fecha:d.fecha||todayStr(),canal:d.canal,nota:d.nota,autor:mySlug()});clean();await safe(()=>col("jugadores").doc(nav.id).update({seguimientos:seg.slice(0,300)}),"Contacto registrado");render();return}
   if(kind==="acredClub"){const club=form.dataset.club;if(!d.email||!/@/.test(d.email))return toast("Escribe un correo válido.");const id=norm(club).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80)||uid();
     await safe(()=>col("acred_clubs").doc(id).set(stamp({club,email:d.email,num:d.num||1,asunto:"",origen:"app"})),"Correo guardado");render();return}
-  if(kind==="tNueva"){if(!d.titulo)return toast("Escribe la tarea.");const ref=col("tareas").doc();const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(d.hora||"")?d.hora.padStart(5,"0"):"",lugar:d.lugar||"",con:d.con||"",notas:d.notas||"",aviso:Number(d.aviso)||0,duracion:60,estado:"pendiente",autor:mySlug()||"",creada:new Date().toISOString(),dictado:(S.dictado||{}).texto||"",gcal:{estado:validDate(d.fecha)?"pendiente":"sin_fecha"}};
+  if(kind==="tNueva"){if(!d.titulo)return toast("Escribe la tarea.");const ref=col("tareas").doc();const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(d.hora||"")?d.hora.padStart(5,"0"):"",aviso:Number(d.aviso)||0,compartidos:(d.compartidos||[]).filter(Boolean),duracion:60,estado:"pendiente",autor:mySlug()||"",creada:new Date().toISOString(),dictado:(S.dictado||{}).texto||"",gcal:{estado:validDate(d.fecha)?"pendiente":"sin_fecha"}};
     clean();if(await safe(()=>ref.set(o),"Tarea guardada")){S.dictado={};render();if(o.fecha){S.tareas[ref.id]={...o,id:ref.id};gcalCrear(ref.id)}}return}
   if(kind==="capSeg"){const c=S.capJug[nav.id];if(!c)return;const seg=clone(c.seguimientos||[]);seg.unshift({id:uid(),fecha:d.fecha||todayStr(),canal:d.canal,nota:d.nota,autor:mySlug()});clean();await safe(()=>col("captacion_jugadores").doc(nav.id).update({seguimientos:seg.slice(0,300)}),"Contacto anotado");render();return}
   if(kind==="jugCambio"){const j=S.jugadores[nav.id];if(!j)return;if(!d.club)return toast("Elige el nuevo equipo.");if(!validDate(d.desde))return toast("Pon la fecha del cambio.");
@@ -2314,6 +2336,7 @@ async function boot(){
   if(!db){S.noRuntime=true;render();return}
   if(user){const me=await user.me();S.me.id=me.id;S.me.isOwner=!!me.isOwner;S.me.canEdit=!!me.canEdit}
   subColl("miembros","miembros");
+  if(S.me.id)S.db.doc("vistos/"+S.me.id).onSnapshot(d=>{if(d.exists)S.vistos=d.data();else if(!S._vNew){S._vNew=true;const o={desde:new Date().toISOString(),v:{}};S.vistos=o;S.db.doc("vistos/"+S.me.id).set(o).catch(e=>console.warn("vistos",e))}scheduleRender()},()=>{});
   S.db.doc("config/app").onSnapshot(d=>{S.config=d.exists?{...d.data()}:null;S.loaded.config=true;checkReady();scheduleRender()},()=>{S.loaded.config=true;checkReady();scheduleRender()});
   subColl("jugadores","jugadores");
   subColl("captacion_partidos","partidos");

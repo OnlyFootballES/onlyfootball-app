@@ -50,11 +50,14 @@ let hiddenAt=0;
 document.addEventListener("visibilitychange",async()=>{if(document.hidden){hiddenAt=Date.now();return}if(Date.now()-hiddenAt<60000)return;for(const c of [...cache.keys()]){cache.delete(c);try{await load(c);emitAll(c)}catch(e){console.warn(e)}}});
 
 /* ---------- API tipo Firestore que espera la app ---------- */
+/* novedades: marco quién y cuándo cambia cada dato que el equipo debe ver con punto rojo */
+const TRACK=new Set(["jugadores","privado/contratos/items","captacion_jugadores","captacion_partidos","mercado_equipos","tareas"]);
+function conMod(c,data){if(!TRACK.has(c)||!ME||!isObj(data))return data;return{...data,_mod:{t:new Date().toISOString(),por:ME.id}}}
 function docRef(c,id){
   return{id,path:c+"/"+id,
     async get(){await load(c);return docSnap(c,id)},
-    async set(data){const {error}=await sb.rpc("doc_set",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);applyLocal(c,id,clone(data))},
-    async update(data){const {error}=await sb.rpc("doc_update",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);const m=cache.get(c);if(m&&m.has(id))applyLocal(c,id,merge(m.get(id),data))},
+    async set(data){data=conMod(c,data);const {error}=await sb.rpc("doc_set",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);applyLocal(c,id,clone(data))},
+    async update(data){data=conMod(c,data);const {error}=await sb.rpc("doc_update",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);const m=cache.get(c);if(m&&m.has(id))applyLocal(c,id,merge(m.get(id),data))},
     async delete(){const {error}=await sb.from("docs").delete().eq("col",c).eq("id",id);if(error)throw mapErr(error);applyLocal(c,id,undefined)},
     onSnapshot(cb,onErr){const k=c+"/"+id;if(!docSubs.has(k))docSubs.set(k,new Set());docSubs.get(k).add(cb);
       load(c).then(()=>cb(docSnap(c,id))).catch(e=>{console.warn(c,e);onErr&&onErr(e)});
