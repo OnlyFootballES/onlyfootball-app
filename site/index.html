@@ -1517,17 +1517,23 @@ function gcalLink(t){if(!validDate(t.fecha))return"";const f=t.fecha.replace(/-/
   if(t.hora&&/^\d{1,2}:\d{2}$/.test(t.hora)){const [h,m]=t.hora.split(":").map(Number);const ini=new Date(2000,0,1,h,m);const fin=new Date(ini.getTime()+(Number(t.duracion)||60)*60000);const hh=x=>pad(x.getHours())+pad(x.getMinutes())+"00";dates=f+"T"+hh(ini)+"/"+f+"T"+hh(fin)}
   else{const d2=new Date(toD(t.fecha).getTime()+864e5);dates=f+"/"+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())}
   return"https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(t.titulo||"Tarea")+"&dates="+dates+"&ctz=Europe/Madrid"+(t.lugar?"&location="+encodeURIComponent(t.lugar):"")+"&details="+encodeURIComponent([t.con?"Con: "+t.con:"",t.notas||"","Apuntada en la app ONLY FOOTBALL"].filter(Boolean).join("\n"))}
-function gcalPill(t){const g=t.gcal||{};return g.estado==="creado"?`<span class="pill ok">En Google Calendar</span>`:g.estado==="error"?`<span class="pill bad" title="${esc(g.error||"")}">Error al pasar a Calendar</span>`:t.fecha?`<span class="pill">Pasa a Calendar en menos de 1 h</span>`:""}
+function gcalPill(t){const g=t.gcal||{};return g.estado==="revisar"?`<span class="pill">Se cambia en Calendar en menos de 3 h</span>`:g.estado==="quitar"?`<span class="pill">Se quita de Calendar en menos de 3 h</span>`:g.estado==="creado"?`<span class="pill ok">En Google Calendar</span>`:g.estado==="error"?`<span class="pill bad" title="${esc(g.error||"")}">Error al pasar a Calendar</span>`:t.fecha?`<span class="pill">Pasa a Calendar en menos de 1 h</span>`:""}
 function viewTareas(){
   const f=S.f;const hoy=todayStr();const all=misTareas();
   const pend=all.filter(t=>t.estado!=="hecha").sort((a,b)=>((a.fecha||"9999")+(a.hora||"")).localeCompare((b.fecha||"9999")+(b.hora||"")));
   const hechas=all.filter(t=>t.estado==="hecha").sort((a,b)=>String(b.hechaEl||b.fecha||"").localeCompare(String(a.hechaEl||a.fecha||""))).slice(0,20);
   const grupos=[["Atrasadas",pend.filter(t=>t.fecha&&t.fecha<hoy)],["Hoy",pend.filter(t=>t.fecha===hoy)],["Próximas",pend.filter(t=>t.fecha&&t.fecha>hoy)],["Sin fecha",pend.filter(t=>!t.fecha)]];
   const dict=S.dictado||{};FK="td";
-  const card=t=>{const gente=tareaGente(t);const mia=t.autor===mySlug()||S.me.isOwner;return`<div class="li tarea${t.estado==="hecha"?" hecha":""}"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="${t.estado==="hecha"?"Marcar como pendiente":"Marcar como hecha"}">${t.estado==="hecha"?"✓":""}</button>
+  const card=t=>{const gente=tareaGente(t);const mia=t.autor===mySlug()||S.me.isOwner;
+    if(S.tEdit===t.id){FK="te";return`<div class="li tarea"><form class="grow" data-form="tEdit" data-id="${esc(t.id)}" data-dirtytrack><div class="form">
+      ${F("titulo","Tarea",t.titulo,{span:true})}${F("fecha","Fecha",t.fecha,{type:"date"})}${F("hora","Hora",t.hora,{ph:"Vacío = todo el día"})}
+      ${F("aviso","Aviso",String(t.aviso??60),{type:"select",opts:AVISOS,empty:false})}
+      ${mia?`<div class="fld span"><label>Compartir con</label><div class="row">${membersSorted().filter(m=>m.id!==t.autor&&m.activo!==false).map(m=>F("compartidos[]",m.nombre,(t.compartidos||[]).includes(m.id),{type:"check",value:m.id,vid:m.id})).join("")}</div></div>`:""}
+      <div class="form-actions"><button type="button" class="btn ghost" data-act="tEditCancel">Cancelar</button><button class="btn primary">Guardar cambios</button></div></div></form></div>`}
+    return`<div class="li tarea${t.estado==="hecha"?" hecha":""}"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="${t.estado==="hecha"?"Marcar como pendiente":"Marcar como hecha"}">${t.estado==="hecha"?"✓":""}</button>
     <div class="li-main"><div class="li-t">${novTarea(t)?NDOT:""}${esc(t.titulo)}</div><div class="li-s">${esc(tareaCuando(t))}${t.hora&&Number(t.aviso)?" · aviso "+esc(avisoTxt(t.aviso)):""}</div>${gente?`<div class="li-s">${esc(gente)}</div>`:""}
-    <div class="row" style="gap:6px;margin-top:4px">${t.estado!=="hecha"?gcalPill(t):""}${t.estado!=="hecha"&&t.fecha&&(t.gcal||{}).estado!=="creado"?`<a class="btn sm ghost" href="${esc(gcalLink(t))}" target="_blank" rel="noopener">Añadir ya a Google Calendar</a>`:""}</div></div>
-    ${mia?delBtn("tarea:"+t.id,"Quitar"):""}</div>`};
+    <div class="row" style="gap:6px;margin-top:4px">${t.estado!=="hecha"?gcalPill(t):""}${t.estado!=="hecha"&&t.fecha&&!["creado","revisar"].includes((t.gcal||{}).estado)?`<a class="btn sm ghost" href="${esc(gcalLink(t))}" target="_blank" rel="noopener">Añadir ya a Google Calendar</a>`:""}</div></div>
+    <div class="row" style="gap:6px;flex-wrap:nowrap">${t.estado!=="hecha"?`<button type="button" class="btn sm" data-act="tEdit" data-id="${esc(t.id)}">Modificar</button>`:""}${mia?delBtn("tarea:"+t.id,"Quitar"):""}</div></div>`};
   const rec=window.SpeechRecognition||window.webkitSpeechRecognition;
   return`<div class="head"><div class="head-l"><span class="eyebrow">Lo que tienes que hacer</span><h1>Tareas</h1></div>${S.me.isOwner?`<label class="check"><input type="checkbox" id="t_todas" data-act-change="tTodas"${f.tTodas?" checked":""}><span>Ver las de todos</span></label>`:""}</div>
   <section class="panel dictado"><div class="panel-h"><h3>Nueva tarea</h3><span class="muted small">Dila o escríbela como te salga</span></div>
@@ -1988,6 +1994,12 @@ async function onSubmit(form){
   if(kind==="segAdd"){const j=S.jugadores[nav.id];const seg=clone(j.seguimientos||[]);seg.unshift({id:uid(),fecha:d.fecha||todayStr(),canal:d.canal,nota:d.nota,autor:mySlug()});clean();await safe(()=>col("jugadores").doc(nav.id).update({seguimientos:seg.slice(0,300)}),"Contacto registrado");render();return}
   if(kind==="acredClub"){const club=form.dataset.club;if(!d.email||!/@/.test(d.email))return toast("Escribe un correo válido.");const id=norm(club).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80)||uid();
     await safe(()=>col("acred_clubs").doc(id).set(stamp({club,email:d.email,num:d.num||1,asunto:"",origen:"app"})),"Correo guardado");render();return}
+  if(kind==="tEdit"){const t=S.tareas[form.dataset.id];if(!t)return;if(!d.titulo)return toast("Escribe la tarea.");
+    const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(d.hora||"")?d.hora.padStart(5,"0"):"",aviso:Number(d.aviso)||0};
+    if(Array.isArray(d.compartidos))o.compartidos=d.compartidos.filter(Boolean);
+    const cambiaCal=o.titulo!==t.titulo||o.fecha!==(t.fecha||"")||o.hora!==(t.hora||"")||o.aviso!==Number(t.aviso||0);
+    if(cambiaCal){const g=t.gcal||{};o.gcal=g.eventId?{estado:o.fecha?"revisar":"quitar",eventId:g.eventId}:{estado:o.fecha?"pendiente":"sin_fecha"}}
+    clean();if(await safe(()=>col("tareas").doc(t.id).update(o),"Tarea modificada")){S.tEdit=null}render();return}
   if(kind==="tNueva"){if(!d.titulo)return toast("Escribe la tarea.");const ref=col("tareas").doc();const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(d.hora||"")?d.hora.padStart(5,"0"):"",aviso:Number(d.aviso)||0,compartidos:(d.compartidos||[]).filter(Boolean),duracion:60,estado:"pendiente",autor:mySlug()||"",creada:new Date().toISOString(),dictado:(S.dictado||{}).texto||"",gcal:{estado:validDate(d.fecha)?"pendiente":"sin_fecha"}};
     clean();if(await safe(()=>ref.set(o),"Tarea guardada")){S.dictado={};render();if(o.fecha){S.tareas[ref.id]={...o,id:ref.id};gcalCrear(ref.id)}}return}
   if(kind==="capSeg"){const c=S.capJug[nav.id];if(!c)return;const seg=clone(c.seguimientos||[]);seg.unshift({id:uid(),fecha:d.fecha||todayStr(),canal:d.canal,nota:d.nota,autor:mySlug()});clean();await safe(()=>col("captacion_jugadores").doc(nav.id).update({seguimientos:seg.slice(0,300)}),"Contacto anotado");render();return}
@@ -2213,6 +2225,8 @@ document.addEventListener("click",async e=>{
     case"tMic":tMic();break;
     case"tInterpretar":tInterpretar();break;
     case"tDescartar":clean();S.dictado={};render();break;
+    case"tEdit":clean();S.tEdit=el.dataset.id;render();break;
+    case"tEditCancel":clean();S.tEdit=null;render();break;
     case"tDone":{const t=S.tareas[el.dataset.id];if(t){const h=t.estado!=="hecha";await safe(()=>col("tareas").doc(t.id).update({estado:h?"hecha":"pendiente",hechaEl:h?new Date().toISOString():""}),h?"Hecha":"Vuelve a pendientes")}break}
     case"cambioEq":S.f.cambioEq=el.dataset.id;render();break;
     case"cambioEqCancel":clean();S.f.cambioEq="";render();break;
