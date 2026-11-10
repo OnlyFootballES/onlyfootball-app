@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="app-ver" content="1794316969"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Only Football</title><meta name="theme-color" content="#000000"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Only Football"><meta name="robots" content="noindex,nofollow"></head><body>
+<html lang="es"><head><meta charset="utf-8"><meta name="app-ver" content="1794318628"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Only Football</title><meta name="theme-color" content="#000000"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Only Football"><meta name="robots" content="noindex,nofollow"></head><body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@300;400;500;600&family=Saira+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -204,6 +204,7 @@ tfoot td{font-weight:600;border-bottom:0}
 .pitch .mk:focus{outline:none}
 .pitch .mk:focus circle{stroke:var(--accent);stroke-width:.8}
 .legend{display:flex;gap:14px;font-size:.82rem;color:var(--muted);flex-wrap:wrap}
+.hchip{display:inline-block;font-family:var(--f-mono,monospace);font-weight:700;font-size:.85rem;padding:2px 7px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);margin-right:8px;white-space:nowrap}.hchip-0{font-weight:500;font-size:.72rem;color:var(--muted)}
 .ndot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 2px var(--surface);flex:none;vertical-align:middle}
 .card{position:relative}.card>.ndot{position:absolute;top:9px;right:9px}
 .nav button .ndot{margin-left:auto}
@@ -384,7 +385,7 @@ label.btn{position:relative}
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="shim.js?v=1794315997&x=1794254777"></script>
+<script src="shim.js?v=1794318628"></script>
 <script>
 /* ===================== Constantes ===================== */
 const CATS=[
@@ -771,7 +772,7 @@ function viewInicio(){
     const sem=new Date(toD(hoy).getTime()+7*864e5);const semS=sem.getFullYear()+"-"+pad(sem.getMonth()+1)+"-"+pad(sem.getDate());
     const lista=tt.filter(t=>t.fecha&&t.fecha<=semS).sort((a,b)=>(a.fecha+(a.hora||"")).localeCompare(b.fecha+(b.hora||"")));
     rows.push(row("tareas",ic.tareas,"Tareas",venc.length+dHoy.length,venc.length?venc.length+" atrasadas · "+dHoy.length+" para hoy":dHoy.length?dHoy.length+" para hoy":lista.length?lista.length+" esta semana":"Nada pendiente esta semana",venc.length?"bad":dHoy.length?"warn":"",
-      `${lista.length?`<div class="list">${lista.map(t=>`<div class="li"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="Marcar como hecha"></button><div class="li-main"><div class="li-t">${esc(t.titulo)}</div><div class="li-s"${t.fecha<hoy?' style="color:var(--bad)"':""}>${t.fecha<hoy?"Atrasada · ":""}${esc(tareaCuando(t))}${t.lugar?" · "+esc(t.lugar):""}</div></div></div>`).join("")}</div>`:`<p class="muted" style="margin:0">No tienes tareas para esta semana.</p>`}
+      `${lista.length?`<div class="list">${lista.map(t=>`<div class="li"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="Marcar como hecha"></button><div class="li-main"><div class="li-t">${horaChip(t)}${esc(t.titulo)}</div><div class="li-s"${t.fecha<hoy?' style="color:var(--bad)"':""}>${t.fecha<hoy?"Atrasada · ":""}${esc(tareaCuando(t))}${t.lugar?" · "+esc(t.lugar):""}</div></div></div>`).join("")}</div>`:`<p class="muted" style="margin:0">No tienes tareas para esta semana.</p>`}
       <div class="row" style="margin-top:8px"><button class="btn sm" data-act="tab" data-tab="tareas">Abrir Tareas y apuntar una nueva</button></div>`))}
   // 3. Comunicaciones
   if(p.jugadores!=="none"){
@@ -1554,7 +1555,9 @@ function nuestrosEn(p){const ks=[teamKey(p.local||""),teamKey(p.visitante||"")];
 const DIAS_ES=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
 function misTareas(){const me=mySlug();return Object.values(S.tareas||{}).filter(t=>t.estado!=="borrada"&&(t.autor===me||(me&&(t.compartidos||[]).includes(me))||(S.me.isOwner&&S.f.tTodas)))}
 function tareaGente(t){const me=mySlug();const sh=(t.compartidos||[]).filter(x=>x!==me);const out=[];if(t.autor&&t.autor!==me)out.push("De "+memberName(t.autor));if(sh.length)out.push((t.autor===me?"Compartida con ":"También con ")+sh.map(memberName).join(", "));return out.join(" · ")}
-function tareaCuando(t){if(!validDate(t.fecha))return"Sin fecha";const d=toD(t.fecha);return d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"short"})+(t.hora?" · "+t.hora:"")}
+function horaOk(h){h=String(h||"").trim().toLowerCase().replace(/\s*(h|hrs?|horas?)$/,"");let m=h.match(/^(\d{1,2})(?:[:.,h ]?(\d{2}))?$/);if(!m&&/^\d{3,4}$/.test(h))m=[0,h.slice(0,-2),h.slice(-2)];if(!m)return"";const H=+m[1],M=+(m[2]||0);if(H>23||M>59)return"";return String(H).padStart(2,"0")+":"+String(M).padStart(2,"0")}
+function tareaCuando(t){if(!validDate(t.fecha))return"Sin fecha";const d=toD(t.fecha);return d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"short"})+" · "+(t.hora?t.hora+" h":"todo el día")}
+function horaChip(t){return`<span class="hchip${t.hora?"":" hchip-0"}">${t.hora?esc(t.hora):"Todo el día"}</span>`}
 function gcalLink(t){if(!validDate(t.fecha))return"";const f=t.fecha.replace(/-/g,"");let dates;
   if(t.hora&&/^\d{1,2}:\d{2}$/.test(t.hora)){const [h,m]=t.hora.split(":").map(Number);const ini=new Date(2000,0,1,h,m);const fin=new Date(ini.getTime()+(Number(t.duracion)||60)*60000);const hh=x=>pad(x.getHours())+pad(x.getMinutes())+"00";dates=f+"T"+hh(ini)+"/"+f+"T"+hh(fin)}
   else{const d2=new Date(toD(t.fecha).getTime()+864e5);dates=f+"/"+d2.getFullYear()+pad(d2.getMonth()+1)+pad(d2.getDate())}
@@ -1568,12 +1571,12 @@ function viewTareas(){
   const dict=S.dictado||{};FK="td";
   const card=t=>{const gente=tareaGente(t);const mia=t.autor===mySlug()||S.me.isOwner;
     if(S.tEdit===t.id){FK="te";return`<div class="li tarea"><form class="grow" data-form="tEdit" data-id="${esc(t.id)}" data-dirtytrack><div class="form">
-      ${F("titulo","Tarea",t.titulo,{span:true})}${F("fecha","Fecha",t.fecha,{type:"date"})}${F("hora","Hora",t.hora,{ph:"Vacío = todo el día"})}
+      ${F("titulo","Tarea",t.titulo,{span:true})}${F("fecha","Fecha",t.fecha,{type:"date"})}${F("hora","Hora (vacío = todo el día)",t.hora,{type:"time"})}
       ${F("aviso","Aviso",String(t.aviso??60),{type:"select",opts:AVISOS,empty:false})}
       ${mia?`<div class="fld span"><label>Compartir con</label><div class="row">${membersSorted().filter(m=>m.id!==t.autor&&m.activo!==false).map(m=>F("compartidos[]",m.nombre,(t.compartidos||[]).includes(m.id),{type:"check",value:m.id,vid:m.id})).join("")}</div></div>`:""}
       <div class="form-actions"><button type="button" class="btn ghost" data-act="tEditCancel">Cancelar</button><button class="btn primary">Guardar cambios</button></div></div></form></div>`}
     return`<div class="li tarea${t.estado==="hecha"?" hecha":""}"><button class="tcheck" data-act="tDone" data-id="${esc(t.id)}" aria-label="${t.estado==="hecha"?"Marcar como pendiente":"Marcar como hecha"}">${t.estado==="hecha"?"✓":""}</button>
-    <div class="li-main"><div class="li-t">${novTarea(t)?NDOT:""}${esc(t.titulo)}</div><div class="li-s">${esc(tareaCuando(t))}${t.hora&&Number(t.aviso)?" · aviso "+esc(avisoTxt(t.aviso)):""}</div>${gente?`<div class="li-s">${esc(gente)}</div>`:""}
+    <div class="li-main"><div class="li-t">${novTarea(t)?NDOT:""}${horaChip(t)}${esc(t.titulo)}</div><div class="li-s">${esc(tareaCuando(t))}${t.hora&&Number(t.aviso)?" · aviso "+esc(avisoTxt(t.aviso)):""}</div>${gente?`<div class="li-s">${esc(gente)}</div>`:""}
     <div class="row" style="gap:6px;margin-top:4px">${t.estado!=="hecha"?gcalPill(t):""}${t.estado!=="hecha"&&t.fecha&&!["creado","revisar"].includes((t.gcal||{}).estado)?`<a class="btn sm ghost" href="${esc(gcalLink(t))}" target="_blank" rel="noopener">Añadir ya a Google Calendar</a>`:""}</div></div>
     <div class="row" style="gap:6px;flex-wrap:nowrap">${t.estado!=="hecha"?`<button type="button" class="btn sm" data-act="tEdit" data-id="${esc(t.id)}">Modificar</button>`:""}${mia?delBtn("tarea:"+t.id,"Quitar"):""}</div></div>`};
   const rec=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -1584,7 +1587,7 @@ function viewTareas(){
     <button type="button" class="btn primary" data-act="tInterpretar"${dict.busy?" disabled":""}>${dict.busy?"Leyendo…":"Apuntar"}</button></div>
     ${dict.err?`<div class="callout warn">${esc(dict.err)}</div>`:""}
     ${dict.prop?`<form class="panel" data-form="tNueva" data-dirtytrack style="background:var(--surface-2)"><div class="panel-h"><h3>¿Es así?</h3></div><div class="form">
-      ${F("titulo","Tarea",dict.prop.titulo,{span:true})}${F("fecha","Fecha",dict.prop.fecha,{type:"date"})}${F("hora","Hora",dict.prop.hora,{ph:"Vacío = todo el día"})}
+      ${F("titulo","Tarea",dict.prop.titulo,{span:true})}${F("fecha","Fecha",dict.prop.fecha,{type:"date"})}${F("hora","Hora (vacío = todo el día)",dict.prop.hora,{type:"time"})}
       ${F("aviso","Aviso",String(dict.prop.aviso??60),{type:"select",opts:AVISOS,empty:false})}
       <div class="fld span"><label>Compartir con</label><div class="row">${membersSorted().filter(m=>m.id!==mySlug()&&m.activo!==false).map(m=>F("compartidos[]",m.nombre,(dict.prop.compartidos||[]).includes(m.id),{type:"check",value:m.id,vid:m.id})).join("")||'<span class="muted small">No hay nadie más en la agencia todavía.</span>'}</div></div>
       <div class="form-actions"><button type="button" class="btn ghost" data-act="tDescartar">Descartar</button><button class="btn primary">Guardar tarea</button></div></div></form>`:""}
@@ -1602,7 +1605,7 @@ async function tInterpretar(){
   d.busy=true;d.err="";render();
   const prompt=`Hoy es ${dow} ${hoy} (zona horaria Europe/Madrid). Convierte esta nota dictada por un agente de fútbol en una tarea. Devuelve SOLO un JSON con estas claves: "titulo" (corto y claro, en español, empezando por la acción e incluyendo con quién y dónde si se dice: p. ej. "Reunión con Paco en Cartagena"), "fecha" (YYYY-MM-DD; "el próximo martes" = el primer martes después de hoy; si no se dice fecha, ""), "hora" (HH:MM en 24 h; "por la mañana" = "10:00", "por la tarde" = "17:00", "a mediodía" = "13:00"; si no se dice, ""). No inventes nada que no esté en la nota.\n\nNota: """${texto}"""`;
   try{const r=await S.sample(prompt,{cache:false});const m=String(r.text||"").match(/\{[\s\S]*\}/);const o=m?JSON.parse(m[0]):null;
-    d.prop=o&&o.titulo?{titulo:o.titulo,fecha:validDate(o.fecha)?o.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(o.hora||"")?o.hora.padStart(5,"0"):"",aviso:60,compartidos:[]}:fallback()}
+    d.prop=o&&o.titulo?{titulo:o.titulo,fecha:validDate(o.fecha)?o.fecha:"",hora:horaOk(o.hora),aviso:60,compartidos:[]}:fallback()}
   catch(e){console.error(e);d.err="No he podido interpretarla sola; revisa los datos y guárdala.";d.prop=fallback()}
   d.busy=false;render();
 }
@@ -2038,12 +2041,12 @@ async function onSubmit(form){
   if(kind==="acredClub"){const club=form.dataset.club;if(!d.email||!/@/.test(d.email))return toast("Escribe un correo válido.");const id=norm(club).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80)||uid();
     await safe(()=>col("acred_clubs").doc(id).set(stamp({club,email:d.email,num:d.num||1,asunto:"",origen:"app"})),"Correo guardado");render();return}
   if(kind==="tEdit"){const t=S.tareas[form.dataset.id];if(!t)return;if(!d.titulo)return toast("Escribe la tarea.");
-    const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(d.hora||"")?d.hora.padStart(5,"0"):"",aviso:Number(d.aviso)||0};
+    const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:horaOk(d.hora),aviso:Number(d.aviso)||0};
     if(Array.isArray(d.compartidos))o.compartidos=d.compartidos.filter(Boolean);
     const cambiaCal=o.titulo!==t.titulo||o.fecha!==(t.fecha||"")||o.hora!==(t.hora||"")||o.aviso!==Number(t.aviso||0);
     if(cambiaCal){const g=t.gcal||{};o.gcal=g.eventId?{estado:o.fecha?"revisar":"quitar",eventId:g.eventId}:{estado:o.fecha?"pendiente":"sin_fecha"}}
     clean();if(await safe(()=>col("tareas").doc(t.id).update(o),"Tarea modificada")){S.tEdit=null}render();return}
-  if(kind==="tNueva"){if(!d.titulo)return toast("Escribe la tarea.");const ref=col("tareas").doc();const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:/^\d{1,2}:\d{2}$/.test(d.hora||"")?d.hora.padStart(5,"0"):"",aviso:Number(d.aviso)||0,compartidos:(d.compartidos||[]).filter(Boolean),duracion:60,estado:"pendiente",autor:mySlug()||"",creada:new Date().toISOString(),dictado:(S.dictado||{}).texto||"",gcal:{estado:validDate(d.fecha)?"pendiente":"sin_fecha"}};
+  if(kind==="tNueva"){if(!d.titulo)return toast("Escribe la tarea.");const ref=col("tareas").doc();const o={titulo:d.titulo,fecha:validDate(d.fecha)?d.fecha:"",hora:horaOk(d.hora),aviso:Number(d.aviso)||0,compartidos:(d.compartidos||[]).filter(Boolean),duracion:60,estado:"pendiente",autor:mySlug()||"",creada:new Date().toISOString(),dictado:(S.dictado||{}).texto||"",gcal:{estado:validDate(d.fecha)?"pendiente":"sin_fecha"}};
     clean();if(await safe(()=>ref.set(o),"Tarea guardada")){S.dictado={};render();if(o.fecha){S.tareas[ref.id]={...o,id:ref.id};gcalCrear(ref.id)}}return}
   if(kind==="capSeg"){const c=S.capJug[nav.id];if(!c)return;const seg=clone(c.seguimientos||[]);seg.unshift({id:uid(),fecha:d.fecha||todayStr(),canal:d.canal,nota:d.nota,autor:mySlug(),creado:new Date().toISOString()});clean();await safe(()=>col("captacion_jugadores").doc(nav.id).update({seguimientos:seg.slice(0,300)}),"Contacto anotado");render();return}
   if(kind==="jugCambio"){const j=S.jugadores[nav.id];if(!j)return;if(!d.club)return toast("Elige el nuevo equipo.");if(!validDate(d.desde))return toast("Pon la fecha del cambio.");

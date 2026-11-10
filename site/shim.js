@@ -56,9 +56,15 @@ const META=new Set(["actualizado","actualizadoPor","_mod","_modSec","creado"]);
 const SEC_JUG={seguimientos:"comunicaciones",inicioAgencia:"contrato",finAgencia:"contrato",contratoAgenciaUrl:"contrato",docsAgencia:"contrato"};
 function secDe(c,k){if(c==="jugadores")return SEC_JUG[k]||"info";if(c==="privado/contratos/items")return"contrato";
   if(c==="captacion_jugadores")return k==="seguimientos"?"seguimiento":"info";if(c==="captacion_partidos")return k==="acreditacion"?"acred":k==="marcadores"?"marcadores":"info";return"info"}
+function vacio(v){return v===undefined||v===null||v===""||v===false||(Array.isArray(v)&&!v.length)}
+function igual(a,b){if(vacio(a)&&vacio(b))return true;if(isObj(a)||isObj(b)||Array.isArray(a)||Array.isArray(b))return JSON.stringify(a)===JSON.stringify(b);return String(a)===String(b)}
 function conMod(c,data,esSet){if(!TRACK.has(c)||!ME||!isObj(data))return data;const t=new Date().toISOString();const sec={};
-  Object.keys(data).forEach(k=>{if(META.has(k))return;const sc=secDe(c,k);const L=sec[sc]||(sec[sc]=[]);const v=data[k];
-    if(isObj(v)&&!esSet)Object.keys(v).forEach(k2=>L.push(k+"."+k2));else L.push(k)});
+  const m=cache.get(c);const cur=!esSet&&m&&m.get(data.__id||"")||null;
+  Object.keys(data).forEach(k=>{if(META.has(k)||k==="__id")return;const v=data[k];const sc=secDe(c,k);
+    const camb=[];if(isObj(v)&&!esSet){Object.keys(v).forEach(k2=>{if(!cur||!igual(((cur[k]||{})[k2]),v[k2]))camb.push(k+"."+k2)})}else if(esSet||!cur||!igual(cur[k],v))camb.push(k);
+    if(camb.length)(sec[sc]=sec[sc]||[]).push(...camb)});
+  delete data.__id;
+  if(!esSet&&!Object.keys(sec).length)return data;
   if(esSet&&!Object.keys(sec).length)sec.info=[];
   const ms={};Object.entries(sec).forEach(([k,L])=>{ms[k]={t,por:ME.id,campos:esSet?[]:L}});
   return{...data,_mod:{t,por:ME.id},_modSec:ms}}
@@ -66,7 +72,7 @@ function docRef(c,id){
   return{id,path:c+"/"+id,
     async get(){await load(c);return docSnap(c,id)},
     async set(data){data=conMod(c,data,true);const {error}=await sb.rpc("doc_set",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);applyLocal(c,id,clone(data))},
-    async update(data){data=conMod(c,data);const {error}=await sb.rpc("doc_update",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);const m=cache.get(c);if(m&&m.has(id))applyLocal(c,id,merge(m.get(id),data))},
+    async update(data){data=conMod(c,isObj(data)?{...data,__id:id}:data);const {error}=await sb.rpc("doc_update",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);const m=cache.get(c);if(m&&m.has(id))applyLocal(c,id,merge(m.get(id),data))},
     async delete(){const {error}=await sb.from("docs").delete().eq("col",c).eq("id",id);if(error)throw mapErr(error);applyLocal(c,id,undefined)},
     onSnapshot(cb,onErr){const k=c+"/"+id;if(!docSubs.has(k))docSubs.set(k,new Set());docSubs.get(k).add(cb);
       load(c).then(()=>cb(docSnap(c,id))).catch(e=>{console.warn(c,e);onErr&&onErr(e)});
