@@ -52,11 +52,20 @@ document.addEventListener("visibilitychange",async()=>{if(document.hidden){hidde
 /* ---------- API tipo Firestore que espera la app ---------- */
 /* novedades: marco quién y cuándo cambia cada dato que el equipo debe ver con punto rojo */
 const TRACK=new Set(["jugadores","privado/contratos/items","captacion_jugadores","captacion_partidos","mercado_equipos","tareas"]);
-function conMod(c,data){if(!TRACK.has(c)||!ME||!isObj(data))return data;return{...data,_mod:{t:new Date().toISOString(),por:ME.id}}}
+const META=new Set(["actualizado","actualizadoPor","_mod","_modSec","creado"]);
+const SEC_JUG={seguimientos:"comunicaciones",inicioAgencia:"contrato",finAgencia:"contrato",contratoAgenciaUrl:"contrato",docsAgencia:"contrato"};
+function secDe(c,k){if(c==="jugadores")return SEC_JUG[k]||"info";if(c==="privado/contratos/items")return"contrato";
+  if(c==="captacion_jugadores")return k==="seguimientos"?"seguimiento":"info";if(c==="captacion_partidos")return k==="acreditacion"?"acred":k==="marcadores"?"marcadores":"info";return"info"}
+function conMod(c,data,esSet){if(!TRACK.has(c)||!ME||!isObj(data))return data;const t=new Date().toISOString();const sec={};
+  Object.keys(data).forEach(k=>{if(META.has(k))return;const sc=secDe(c,k);const L=sec[sc]||(sec[sc]=[]);const v=data[k];
+    if(isObj(v)&&!esSet)Object.keys(v).forEach(k2=>L.push(k+"."+k2));else L.push(k)});
+  if(esSet&&!Object.keys(sec).length)sec.info=[];
+  const ms={};Object.entries(sec).forEach(([k,L])=>{ms[k]={t,por:ME.id,campos:esSet?[]:L}});
+  return{...data,_mod:{t,por:ME.id},_modSec:ms}}
 function docRef(c,id){
   return{id,path:c+"/"+id,
     async get(){await load(c);return docSnap(c,id)},
-    async set(data){data=conMod(c,data);const {error}=await sb.rpc("doc_set",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);applyLocal(c,id,clone(data))},
+    async set(data){data=conMod(c,data,true);const {error}=await sb.rpc("doc_set",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);applyLocal(c,id,clone(data))},
     async update(data){data=conMod(c,data);const {error}=await sb.rpc("doc_update",{p_col:c,p_id:id,p_data:data});if(error)throw mapErr(error);const m=cache.get(c);if(m&&m.has(id))applyLocal(c,id,merge(m.get(id),data))},
     async delete(){const {error}=await sb.from("docs").delete().eq("col",c).eq("id",id);if(error)throw mapErr(error);applyLocal(c,id,undefined)},
     onSnapshot(cb,onErr){const k=c+"/"+id;if(!docSubs.has(k))docSubs.set(k,new Set());docSubs.get(k).add(cb);
