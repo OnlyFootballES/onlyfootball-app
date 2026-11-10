@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Only Football</title><meta name="theme-color" content="#000000"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Only Football"><meta name="robots" content="noindex,nofollow"></head><body>
+<html lang="es"><head><meta charset="utf-8"><meta name="app-ver" content="1794316969"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Only Football</title><meta name="theme-color" content="#000000"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Only Football"><meta name="robots" content="noindex,nofollow"></head><body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@300;400;500;600&family=Saira+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -492,9 +492,12 @@ function isMine(j){const s=mySlug();return!!s&&Array.isArray(j.responsables)&&j.
 /* ----- Novedades (punto rojo) ----- */
 const NDOT='<span class="ndot" role="img" aria-label="Novedad"></span>';
 function visV(key){const v=(S.vistos&&S.vistos.v)||{};return v[key]||(S.vistos&&S.vistos.desde)||""}
-function secNueva(c,d,sec){if(!d||!S.vistos||!S.me.id)return false;const ms=d._modSec&&d._modSec[sec];if(!ms||ms.por===S.me.id)return false;return String(ms.t)>String(visV(c+"|"+d.id+"|"+sec))}
+const SEC_SEG={jugadores:"comunicaciones",captacion_jugadores:"seguimiento"};
+function segNuevo(c,d,s){return!!S.vistos&&!!s.creado&&!!s.autor&&s.autor!==mySlug()&&String(s.creado)>String(visV(c+"|"+d.id+"|seg|"+s.id))}
+function secNueva(c,d,sec){if(!d||!S.vistos||!S.me.id)return false;if(SEC_SEG[c]===sec)return(d.seguimientos||[]).some(s=>segNuevo(c,d,s));const ms=d._modSec&&d._modSec[sec];if(!ms||ms.por===S.me.id)return false;return String(ms.t)>String(visV(c+"|"+d.id+"|"+sec))}
 function esNuevo(c,d){if(!d||!S.vistos||!S.me.id)return false;
-  if(d._modSec)return Object.keys(d._modSec).some(sc=>secNueva(c,d,sc));
+  if(SEC_SEG[c]&&secNueva(c,d,SEC_SEG[c]))return true;
+  if(d._modSec)return Object.keys(d._modSec).some(sc=>sc!==SEC_SEG[c]&&secNueva(c,d,sc));
   if(!d._mod||d._mod.por===S.me.id)return false;return String(d._mod.t)>String(visV(c+"|"+d.id))}
 /* umbral: lo visto ANTES de entrar en esta pantalla (para que los puntos de cada dato se vean mientras estás dentro) */
 function umbral(c,id,sec){const k=c+"|"+id+"|"+sec;return(S.umbral&&k in S.umbral)?S.umbral[k]:visV(k)}
@@ -513,9 +516,15 @@ function navNov(k){if(!S.vistos)return false;
   if(k==="tareas")return misTareas().some(t=>esNuevo("tareas",t));
   return false}
 let vQ={},vT=null;
+function marcarSeg(c,id,sid){const d=c==="jugadores"?S.jugadores[id]:S.capJug[id];const s=d&&(d.seguimientos||[]).find(x=>x.id===sid);if(!s||!segNuevo(c,d,s))return;
+  const k=c+"|"+id+"|seg|"+sid;S.vistos.v=S.vistos.v||{};S.vistos.v[k]=s.creado;vQ[k]=s.creado;clearTimeout(vT);
+  vT=setTimeout(()=>{const q=vQ;vQ={};S.db.doc("vistos/"+S.me.id).update({v:q}).catch(e=>console.warn("vistos",e))},300);render()}
+function segItem(c,d,s,borrar){const nuevo=segNuevo(c,d,s);const cab=`<span class="mono small">${fmtShort(s.fecha)}</span> · ${esc(s.canal||"")} <span class="muted small">· ${esc(memberName(s.autor))}</span>`;
+  return`<div class="li"><div class="li-main">${nuevo?`<button class="linky" style="text-align:left;width:100%;text-decoration:none" data-act="segAbrir" data-c="${c}" data-id="${esc(d.id)}" data-sid="${esc(s.id)}"><div class="li-t">${NDOT}${cab}</div><div class="li-s"><b>Nueva · toca para abrirla</b></div></button>`
+    :`<div class="li-t">${cab}</div>${s.nota?`<div class="li-s" style="white-space:pre-wrap">${esc(s.nota)}</div>`:""}`}</div>${borrar}</div>`}
 function marcarVisto(c,d,secs){if(!d||!S.vistos)return;S.vistos.v=S.vistos.v||{};S.umbral=S.umbral||{};let cambia=false;
   const put=(key,t)=>{if(!(key in S.umbral))S.umbral[key]=visV(key);S.vistos.v[key]=t;vQ[key]=t;cambia=true};
-  if(d._modSec){(secs||Object.keys(d._modSec)).forEach(sc=>{if(secNueva(c,d,sc))put(c+"|"+d.id+"|"+sc,d._modSec[sc].t)})}
+  if(d._modSec){(secs||Object.keys(d._modSec)).forEach(sc=>{if(sc!==SEC_SEG[c]&&secNueva(c,d,sc))put(c+"|"+d.id+"|"+sc,d._modSec[sc].t)})}
   else if(esNuevo(c,d))put(c+"|"+d.id,d._mod.t);
   if(!cambia)return;clearTimeout(vT);
   vT=setTimeout(()=>{const q=vQ;vQ={};S.db.doc("vistos/"+S.me.id).update({v:q}).catch(e=>console.warn("vistos",e))},700)}
@@ -922,6 +931,7 @@ function jugInfo(j){
     ${ed?`<div class="form-actions">${S.sample?`<button type="button" class="btn" data-act="perfilGen" data-id="${esc(j.id)}"${pg.busy?" disabled":""}>${pg.busy?"Escribiendo…":"Redactar con Claude"}</button>`:""}<button class="btn primary">Guardar perfil</button></div>`:""}</div>
     ${pg.err?`<div class="callout warn">${esc(pg.err)}</div>`:""}
   </form>
+  ${capAvisoHTML(capEnEquipos([(j.equipo&&j.equipo.nombre)||j.club,j.club,j.equipoSuperior&&j.equipoSuperior.nombre].filter((x,i,a)=>x&&a.indexOf(x)===i)),"En su equipo seguimos también a")}
   ${p.mercado||ofrec.length?`<section class="panel"><div class="panel-h"><h3>Mercado · ${esc(cur.nombre)}</h3></div>${ofrec.length?`<div class="list">${ofrec.map(({e,x})=>`<div class="li"><div class="li-main"><div class="li-t">${p.mercado?`<button class="linky" data-act="openEq" data-id="${esc(e.id)}">${esc(e.nombre)}</button>`:esc(e.nombre)}</div><div class="li-s">${esc(catName(e.categoria))}${e.grupo?" · G"+esc(e.grupo):""} · ${fmtShort(x.fecha)}</div></div><span class="pill ${EST_OF_TONE[x.estado]||""}">${esc(x.estado)}</span></div>`).join("")}</div>`:`<p class="muted" style="margin:0">Todavía no se ha ofrecido a ningún club en este mercado.</p>`}</section>`:""}
   </div></div>`;
 }
@@ -1199,7 +1209,7 @@ function jugComunicaciones(j){
   return`<div>
   <section class="panel"><div class="panel-h"><h3>Registro de seguimiento</h3><span class="muted small">${seg.length} contactos</span></div>
     ${ed?`<form data-form="segAdd" data-dirtytrack><div class="form">${F("fecha","Fecha",todayStr(),{type:"date"})}${F("canal","Canal","WhatsApp",{type:"select",opts:CANALES,empty:false})}${F("nota","Qué hablasteis","",{type:"textarea",span:true,rows:2,ph:"Cómo está, minutos, lesiones, ánimo…"})}<div class="form-actions"><button class="btn primary">Registrar contacto</button></div></div></form>`:""}
-    ${seg.length?`<div class="list">${seg.slice(0,40).map(s=>`<div class="li"><div class="li-main"><div class="li-t">${itemNuevo("jugadores",j.id,"comunicaciones",s.creado,s.autor)?NDOT:""}<span class="mono small">${fmtShort(s.fecha)}</span> · ${esc(s.canal)} <span class="muted small">· ${esc(memberName(s.autor))}</span></div>${s.nota?`<div class="li-s" style="white-space:pre-wrap">${esc(s.nota)}</div>`:""}</div>${(S.me.isOwner||s.autor===mySlug())?delBtn("seg:"+j.id+":"+s.id,"Quitar"):""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos registrados.</p>`}
+    ${seg.length?`<div class="list">${seg.slice(0,40).map(s=>segItem("jugadores",j,s,(S.me.isOwner||s.autor===mySlug())?delBtn("seg:"+j.id+":"+s.id,"Quitar"):"")).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos registrados.</p>`}
   </section></div>`;
 }
 function genPanel(j,def){
@@ -1434,7 +1444,7 @@ const EST_ACRED_TXT={Pendiente:"Sin solicitar",Solicitada:"Solicitadas",Concedid
 function listaAcredMias(){
   const me=mySlug();const ps=acredPartidos().filter(p=>p.captador===me);
   const card=p=>{const est=(p.acreditacion||{}).estado||"Pendiente";const a=p.acreditacion||{};
-    return`<div class="li">${novPar(p)?NDOT:""}<div class="li-main"><div class="li-t">${esc(p.local)} – ${esc(p.visitante)}</div><div class="li-s">${esc(fechaHoraTxt(p))}${competicionTxt(p)?" · "+esc(competicionTxt(p)):""}</div>${a.fecha&&est!=="Pendiente"?`<div class="li-s">Actualizado el ${esc(new Date(a.fecha).toLocaleDateString("es-ES",{day:"numeric",month:"short"}))}</div>`:""}</div><span class="pill ${EST_ACRED_TONE[est]}">${esc(EST_ACRED_TXT[est]||est)}</span></div>`};
+    return`<div class="li">${novPar(p)?NDOT:""}<div class="li-main"><div class="li-t">${esc(p.local)} – ${esc(p.visitante)}</div><div class="li-s">${esc(fechaHoraTxt(p))}${competicionTxt(p)?" · "+esc(competicionTxt(p)):""}</div>${(()=>{const cs=capEnEquipos([p.local,p.visitante]).filter(c=>!capMio(c));return cs.length?`<div class="li-s">Seguimos en Captación: <b>${cs.map(c=>esc(c.nombre)+" ("+esc(c.club||"")+", "+esc(c.estado||"Observado")+")").join(", ")}</b></div>`:""})()}${a.fecha&&est!=="Pendiente"?`<div class="li-s">Actualizado el ${esc(new Date(a.fecha).toLocaleDateString("es-ES",{day:"numeric",month:"short"}))}</div>`:""}</div><span class="pill ${EST_ACRED_TONE[est]}">${esc(EST_ACRED_TXT[est]||est)}</span></div>`};
   return`<div class="callout">Las acreditaciones las pide Josemi. Elige en «Partidos» a qué partido quieres ir y aquí verás si ya están pedidas y si te las han concedido.</div>
   ${ps.length?`<section class="panel"><div class="list">${ps.map(card).join("")}</div></section>`:`<div class="empty"><strong>No tienes partidos próximos</strong><span>Crea uno en «Partidos» con «Nuevo partido» y aparecerá aquí.</span></div>`}`;
 }
@@ -1775,6 +1785,7 @@ function viewPartido(){
   const nuestros=nuestrosEn(p);
   return`<button class="back" data-act="tab" data-tab="partidos">← Partidos</button>
   <div class="head"><div class="head-l"><span class="eyebrow">${fmtDate(p.fecha)}${p.hora?" · "+esc(p.hora):""}${p.categoria?" · "+esc(p.categoria):""}${p.campo?" · "+esc(p.campo):""}</span><h1>${esc(p.local||"Local")} – ${esc(p.visitante||"Visitante")}</h1><div class="muted">Visto por ${esc(memberName(p.captador))}${p.besoccerUrl?" · "+link(p.besoccerUrl,"Ver en BeSoccer"):""}</div>${nuestros.length?`<div class="row" style="gap:6px;margin-top:6px"><span class="muted small">Juegan nuestros:</span>${nuestros.map(j=>`<button class="pill ok" style="border:0;cursor:pointer" data-act="openJug" data-id="${esc(j.id)}">${esc(j.nombre)}</button>`).join("")}</div>`:""}</div><div class="row">${delBtn("partido:"+p.id,"Quitar partido")}</div></div>
+  ${capAvisoHTML(capEnEquipos([p.local,p.visitante]).filter(c=>!capMio(c)),"En este partido la agencia sigue a")}
   <div class="pitch-wrap"><div class="pitch-col">${pitchSVG(p)}<div class="legend"><span><span class="dot" style="background:var(--home-fill)"></span>${esc(p.local||"Local")}</span><span><span class="dot" style="background:var(--away-fill)"></span>${esc(p.visitante||"Visitante")}</span><span class="mono">68 × 105 m</span></div>${S.pickChip?`<div class="callout">Toca en el campo el sitio donde juega <b>${esc((lineupInfo(p,S.pickChip)||{}).n||"el jugador")}</b>. <button class="btn sm ghost" data-act="pickCancel">Cancelar</button></div>`:""}</div>
   <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${side}${alineacionesPanel(p)}${marcadosPanel(p)}
   <details class="panel"><summary style="cursor:pointer;font-weight:600">Datos del partido</summary>
@@ -1855,7 +1866,7 @@ function viewCapJug(){
     <div class="muted small" style="margin-bottom:8px">${on?"Se buscan sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57 y te aviso al acabar cada uno.":"Desactivado: está en «Solo nos gusta» y no se buscan sus partidos."}</div>
     ${on?`${due?`<div class="callout warn">${esc(due.txt)}</div>`:`<div class="muted small">Al día: contacto esta semana y después de su último partido.</div>`}
     <form data-form="capSeg" data-dirtytrack><div class="form">${F("fecha","Fecha",todayStr(),{type:"date"})}${F("canal","Canal","WhatsApp",{type:"select",opts:[...CANALES,"Familia"],empty:false})}${F("nota","Qué hablasteis","",{type:"textarea",span:true,rows:2,ph:"Cómo va la semana, minutos, qué piensa de la agencia, siguiente paso…"})}<div class="form-actions">${c.telefono?`<a class="btn ghost" href="${esc(waLink(c.telefono))}" target="_blank" rel="noopener">WhatsApp</a>`:""}<button class="btn primary">Anotar contacto</button></div></div></form>
-    ${seg.length?`<div class="list">${seg.slice(0,30).map(x=>`<div class="li"><div class="li-main"><div class="li-t">${itemNuevo("captacion_jugadores",c.id,"seguimiento",x.creado,x.autor)?NDOT:""}<span class="mono small">${fmtShort(x.fecha)}</span> · ${esc(x.canal||"")} <span class="muted small">· ${esc(memberName(x.autor))}</span></div>${x.nota?`<div class="li-s" style="white-space:pre-wrap">${esc(x.nota)}</div>`:""}</div>${(S.me.isOwner||x.autor===mySlug())?delBtn("cseg:"+c.id+":"+x.id,"Quitar"):""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos anotados.</p>`}`
+    ${seg.length?`<div class="list">${seg.slice(0,30).map(x=>segItem("captacion_jugadores",c,x,(S.me.isOwner||x.autor===mySlug())?delBtn("cseg:"+c.id+":"+x.id,"Quitar"):"")).join("")}</div>`:`<p class="muted" style="margin:0">Aún no hay contactos anotados.</p>`}`
     :`<p class="muted" style="margin:0">Actívalo para seguirle como a un jugador de la agencia: sus partidos se buscan los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57 y te aviso después de cada partido y si pasa una semana sin hablar con él. Se activa solo al ponerle «Contactado» o «Negociando».</p>`}
     </section>${on?partidosPanel(c):""}`})()}
   <section class="panel"><div class="panel-h"><h3>Observaciones en partidos</h3><span class="muted small">${obs.length}</span></div>
@@ -2243,6 +2254,7 @@ document.addEventListener("click",async e=>{
   switch(a){
     case"tab":go(el.dataset.tab);break;
     case"refresh":clean();render();break;
+    case"segAbrir":marcarSeg(el.dataset.c,el.dataset.id,el.dataset.sid);break;
     case"sub":clean();S.umbral={};S.nav.sub=el.dataset.sub;render();break;
     case"openJug":S.f.ctab=S.f.ctab;go("jugadores",el.dataset.id,el.dataset.sub||"info");break;
     case"openCap":go("captacion",el.dataset.id,"jug");break;
@@ -2364,6 +2376,17 @@ document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.tar
 
 /* ===================== Arranque ===================== */
 const SUB_FILTRO={capJug:x=>capMio(x),partidos:x=>parMio(x)};
+function capTodosDocs(){const sn=S._all_capJug;return sn?sn.docs.map(d=>({...d.data(),id:d.id})):Object.values(S.capJug||{})}
+function capEnEquipos(nombres){const ks=nombres.map(n=>teamKey(n||"")).filter(Boolean);if(!ks.length)return[];
+  return capTodosDocs().filter(c=>c.estado!=="Descartado"&&c.estado!=="Captado"&&ks.includes(teamKey(c.club||"")))}
+function capAvisoHTML(cs,titulo){if(!cs.length)return"";
+  return`<section class="panel"><div class="panel-h"><h3>${titulo}</h3><span class="muted small">${cs.length}</span></div><p class="muted small" style="margin:0">Jugadores que la agencia sigue en Captación. Tenlo en cuenta si vas a sus partidos o si sale el tema hablando con alguien; para más detalle, pregunta a quien lo lleva.</p>
+  <div class="list">${cs.map(c=>`<div class="li"><div class="li-main"><div class="li-t">${capMio(c)?`<button class="linky" data-act="openCap" data-id="${esc(c.id)}">${esc(c.nombre)}</button>`:esc(c.nombre)} <span class="pos">${esc(c.posicion||"")}</span></div><div class="li-s">${esc(c.club||"")} · lo lleva ${esc(memberName(c.captador))}</div></div><span class="pill ${EST_CAP_TONE[c.estado||"Observado"]}">${esc(c.estado||"Observado")}</span></div>`).join("")}</div></section>`}
+/* La app se recarga sola cuando hay una versión nueva publicada (si no estás escribiendo nada) */
+const APP_VER=(document.querySelector('meta[name="app-ver"]')||{}).content||"";
+async function mirarVersion(){if(!APP_VER||!/^https?:/.test(location.protocol))return;try{const r=await fetch(location.pathname+"?nv="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/name="app-ver" content="(\d+)"/);
+  if(m&&m[1]!==APP_VER){if(document.querySelector("[data-dirty]")||S.newForm||S.tEdit)return;location.reload()}}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")mirarVersion()});setInterval(mirarVersion,5*60*1000);setTimeout(mirarVersion,4000);
 function subColl(path,key){
   S.db.collection(path).onSnapshot(snap=>{const o={};const fl=SUB_FILTRO[key];snap.docs.forEach(d=>{const x={...d.data(),id:d.id};if(!fl||!S.ready||fl(x))o[d.id]=x});S["_all_"+key]=fl?snap:null;S[key]=o;S.loaded[key]=true;checkReady();scheduleRender()},err=>{console.warn(path,err);S.loaded[key]=true;checkReady();scheduleRender()});
 }
