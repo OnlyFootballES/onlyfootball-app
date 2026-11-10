@@ -511,11 +511,17 @@ function autoVisto(){const n=S.nav;if(!S.vistos)return;
   if(n.tab==="jugadores"&&n.id){marcarVisto("jugadores",S.jugadores[n.id]);marcarVisto("privado/contratos/items",S.contratos&&S.contratos[n.id])}
   if(n.tab==="captacion"&&n.id)marcarVisto("captacion_jugadores",S.capJug[n.id]);
   if(n.tab==="partidos"&&n.id)marcarVisto("captacion_partidos",S.partidos[n.id]);
+  if(n.tab==="partidos"&&!n.id&&S.f.ptab==="acred"&&!S.me.isOwner){const me=mySlug();Object.values(S.partidos).forEach(p=>{if(p.captador===me)marcarVisto("captacion_partidos",p)})}
   if(n.tab==="mercado"){if(n.id)marcarVisto("mercado_equipos",S.equipos[n.id]);else if(S._mDocSel)marcarVisto("mercado_equipos",S._mDocSel)}
   if(n.tab==="tareas"){S.tVistas=S.tVistas||new Set();misTareas().forEach(t=>{if(esNuevo("tareas",t)){S.tVistas.add(t.id);marcarVisto("tareas",t)}})}
 }
-function visibleJugadores(){const p=perms();if(!p||p.jugadores==="none")return[];const all=Object.values(S.jugadores);return p.jugadores==="suyos"?all.filter(isMine):all}
-function canEditJug(j){const p=perms();if(!p)return false;if(p.jugadores==="todos")return true;if(p.jugadores==="suyos")return!j||isMine(j);return false}
+function visibleJugadores(){const p=perms();if(!p||p.jugadores==="none")return[];return Object.values(S.jugadores)}
+function misJugadores(){const p=perms();if(!p||p.jugadores==="none")return[];const all=Object.values(S.jugadores);return p.jugadores==="suyos"?all.filter(isMine):all}
+function capPerm(v){return v==="todos"?"todos":v?"suyos":""}
+function capTodos(){if(S.me.isOwner)return true;const p=perms();return!!p&&p.captacion==="todos"}
+function capMio(c){if(capTodos())return true;const me=mySlug();return!!me&&(c.captador===me||c.creadoPor===me)}
+function parMio(p){if(capTodos())return true;const me=mySlug();return!!me&&(p.captador===me||p.creadoPor===me)}
+function canEditJug(j){const p=perms();if(!p)return false;if(p.jugadores==="todos")return true;if(p.jugadores==="suyos")return!!j&&isMine(j);return false}
 function mercadoActual(){const c=S.config||DEFAULT_CONFIG;const id=c.mercadoActual||DEFAULT_CONFIG.mercadoActual;const m=(c.mercados||[]).find(x=>x.id===id);return{id,nombre:m?m.nombre:id}}
 function posGrupo(j){const p=String(j.posicion||"").toUpperCase();for(const g of GRUPOS)if(g[2].includes(p))return g[0];const n=norm(p);if(n.startsWith("port"))return"por";if(n.startsWith("def")||n.includes("lateral")||n.includes("central"))return"def";if(n.includes("medio")||n.includes("centrocamp")||n.includes("pivote"))return"med";if(n.startsWith("del")||n.includes("extremo"))return"del";if(n.startsWith("entren"))return"ent";return"sin"}
 function sub23Limit(){return seasonOf(todayStr())-22}
@@ -718,7 +724,7 @@ function viewInicio(){
     cont:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>'};
   // 0. Resultados de la jornada (partidos de hoy y ayer, se rellena según acaban)
   if(p.jugadores!=="none"){
-    const jr=visibleJugadores().map(j=>({j,p:ultimoPartido(j)})).filter(o=>o.p&&o.p.fecha&&daysBetween(o.p.fecha,hoy)<=1);
+    const jr=misJugadores().map(j=>({j,p:ultimoPartido(j)})).filter(o=>o.p&&o.p.fecha&&daysBetween(o.p.fecha,hoy)<=1);
     if(jr.length){
       const jug=jr.filter(o=>["titular","suplente"].includes(o.p.estado));
       const prio=o=>{const a=alertaPartido(o.p);return a?a.nivel==="bad"?0:a.nivel==="warn"?1:2:3};
@@ -746,7 +752,7 @@ function viewInicio(){
       <div class="row" style="margin-top:8px"><button class="btn sm" data-act="tab" data-tab="tareas">Abrir Tareas y apuntar una nueva</button></div>`))}
   // 3. Comunicaciones
   if(p.jugadores!=="none"){
-    const jug=visibleJugadores();const mios=S.me.isOwner?jug:jug.filter(isMine);
+    const jug=misJugadores();const mios=S.me.isOwner?jug:jug.filter(isMine);
     const capMios=(p.captacion?Object.values(S.capJug).filter(c=>capSeg(c)&&(S.me.isOwner||c.captador===me)):[]);
     const pend=[...mios.map(j=>({x:j,cap:false})),...capMios.map(c=>({x:c,cap:true}))].map(o=>({...o,due:contactoDue(o.x,hoy)})).filter(o=>o.due).sort((a,b)=>(a.due.tipo==="partido"?0:1)-(b.due.tipo==="partido"?0:1)||(b.due.d??999)-(a.due.d??999));
     const tras=pend.filter(o=>o.due.tipo==="partido").length;
@@ -754,7 +760,7 @@ function viewInicio(){
       pend.length?`<div class="list">${pend.map(({x,cap,due})=>`<div class="li"><div class="li-main"><button class="linky" data-act="${cap?"openCap":"openJug"}" data-id="${esc(x.id)}"${cap?"":` data-sub="comunicaciones"`}>${esc(x.nombre)}</button>${cap?` <span class="pill info">Captación</span>`:""}<div class="li-s" style="color:${due.nivel==="bad"?"var(--bad)":"var(--warn)"}">${esc(due.txt)}</div><div class="li-s">${esc(x.club||"Sin club")}</div></div>${x.telefono?`<a class="btn sm ghost" href="${esc(waLink(x.telefono))}" target="_blank" rel="noopener">WhatsApp</a>`:""}</div>`).join("")}</div>`:`<p class="muted" style="margin:0">Has hablado con todos esta semana y después de sus partidos.</p>`))}
   // 4. Contratos
   if(p.jugadores!=="none"&&(p.vencimientos||p.contratos)){
-    const jug=visibleJugadores();const items=[];
+    const jug=misJugadores();const items=[];
     if(p.vencimientos)jug.filter(j=>validDate(j.finAgencia)).forEach(j=>{const d=daysBetween(hoy,j.finAgencia);if(d<=120)items.push({j,d,txt:(d<0?"Vencido el ":"Vence el ")+fmtDate(j.finAgencia),tipo:"Agencia"})});
     if(p.contratos){const fin=seasonOf(hoy);const lim=(fin+1)+"-06-30";jug.forEach(j=>{const c=S.contratos[j.id];if(c&&c.club&&validDate(c.club.fin)&&c.club.fin<=lim){const d=daysBetween(hoy,c.club.fin);items.push({j,d,txt:"Con su club hasta el "+fmtDate(c.club.fin),tipo:"Club"})}})}
     items.sort((a,b)=>a.d-b.d);const vencidos=items.filter(x=>x.d<0);
@@ -800,7 +806,7 @@ function viewJugadores(){
   if(f.jgrp)list=list.filter(j=>posGrupo(j)===f.jgrp);
   const rank=j=>{const i=POS_ORDER.indexOf(String(j.posicion||"").toUpperCase());return i<0?99:i};
   list.sort((a,b)=>rank(a)-rank(b)||String(a.nombre).localeCompare(b.nombre,"es"));
-  const canAdd=p.jugadores==="todos"||p.jugadores==="suyos";
+  const canAdd=p.jugadores==="todos";
   const newF=S.newForm==="jugador"?formNuevoJugador():"";
   const secs=[...GRUPOS,["sin","Sin posición",[]]].map(([g,label])=>{const js=list.filter(j=>posGrupo(j)===g);if(!js.length)return"";
     return`<section class="pgroup"><div class="pgroup-h"><h2>${label}</h2><span class="mono muted">${js.length}</span></div><div class="grid3">${js.map(j=>jugCard(j,p,hoy)).join("")}</div></section>`}).join("");
@@ -813,7 +819,7 @@ function viewJugadores(){
   <div class="chips" role="group" aria-label="Filtrar por puesto"><button class="chip" aria-pressed="${!f.jgrp}" data-act="jgrp" data-v="">Todos <span class="n">${base.length}</span></button>${GRUPOS.map(([g,l])=>`<button class="chip" aria-pressed="${f.jgrp===g}" data-act="jgrp" data-v="${g}">${l.toUpperCase()} <span class="n">${counts[g]||0}</span></button>`).join("")}<button class="chip chip-sub" aria-pressed="${!!f.jsub}" data-act="jsub">SUB 23 <span class="n">${nSub}</span></button></div>
   <div class="toolbar">
     <label class="search">${ICON.search}<input id="q_jug" data-filter="jq" type="search" placeholder="Buscar por nombre, club o posición" value="${esc(f.jq)}" aria-label="Buscar jugadores"></label>
-    ${p.jugadores!=="suyos"?`<select data-filter="jresp" id="fl_jresp" aria-label="Responsable"><option value="">Todos los responsables</option>${opts.map(([v,l])=>`<option value="${esc(v)}"${f.jresp===v?" selected":""}>${esc(l)}</option>`).join("")}</select>`:""}
+    ${p.jugadores!=="none"?`<select data-filter="jresp" id="fl_jresp" aria-label="Responsable"><option value="">Todos los responsables</option>${opts.map(([v,l])=>`<option value="${esc(v)}"${f.jresp===v?" selected":""}>${esc(l)}</option>`).join("")}</select>`:""}
   </div>
   ${list.length?secs:`<div class="empty"><strong>${base.length?"Ningún jugador coincide":"Aún no hay jugadores"}</strong><span>${base.length?"Prueba con otro filtro.":"Añade el primero con «Nuevo jugador», incorpóralo desde Captación o importa tu hoja «Jugadores» en Equipo › Importar."}</span></div>`}`;
 }
@@ -828,9 +834,10 @@ function formNuevoJugador(){
 /* ----- Jugador (detalle) ----- */
 function viewJugador(){
   const j=S.jugadores[S.nav.id];const p=perms();
-  if(!j||(p.jugadores==="suyos"&&!isMine(j)))return`<button class="back" data-act="tab" data-tab="jugadores">← Jugadores</button><div class="empty"><strong>Jugador no disponible</strong><span>Puede que se haya borrado o que no tengas acceso.</span></div>`;
-  const subs=[["info","Información"],["comunicaciones","Comunicaciones"]];
-  if(p.vencimientos||p.contratos)subs.push(["contrato","Contrato"]);
+  if(!j||p.jugadores==="none")return`<button class="back" data-act="tab" data-tab="jugadores">← Jugadores</button><div class="empty"><strong>Jugador no disponible</strong><span>Puede que se haya borrado o que no tengas acceso.</span></div>`;
+  const subs=[["info","Información"]];const suyo=canEditJug(j);
+  if(suyo)subs.push(["comunicaciones","Comunicaciones"]);
+  if(suyo&&(p.vencimientos||p.contratos))subs.push(["contrato","Contrato"]);
   let sub=S.nav.sub;if(!subs.some(s=>s[0]===sub))sub="info";
   const a=age(j.fechaNac);
   let body="";
@@ -1171,7 +1178,7 @@ async function guardarLectura(jid,auto){
 }
 function bdayHint(f){const b=nextBday(f);if(!b)return"";return b.days===0?"¡Cumple "+b.turns+" años hoy!":"Cumple "+b.turns+" años el "+b.date.toLocaleDateString("es-ES",{day:"numeric",month:"long"})+(b.days===1?" (mañana)":" (en "+b.days+" días)")}
 function jugComunicaciones(j){
-  const ed=canEditJug(j)||perms().jugadores==="ver";FK="jm";
+  const ed=canEditJug(j);FK="jm";
   const seg=(j.seguimientos||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   return`<div>
   <section class="panel"><div class="panel-h"><h3>Registro de seguimiento</h3><span class="muted small">${seg.length} contactos</span></div>
@@ -1407,13 +1414,22 @@ function acredMail(p){
 function acredPartidos(){const hoy=todayStr();return Object.values(S.partidos).filter(p=>validDate(p.fecha)&&p.fecha>=hoy).sort((a,b)=>(a.fecha+(a.hora||"")).localeCompare(b.fecha+(b.hora||"")))}
 function finDeSemana(){const d=toD(todayStr());const dow=d.getDay();const toSat=(6-dow+7)%7;const sat=new Date(d.getTime()+toSat*864e5);const fri=new Date(sat.getTime()-864e5),mon=new Date(sat.getTime()+2*864e5);const f=x=>x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate());return[f(fri),f(mon)]}
 function mailtoHref(m){return`mailto:${m.to.replace(/[^\w.@+-]/g,"")}?subject=${encodeURIComponent(m.asunto)}&body=${encodeURIComponent(m.cuerpo.replace(/\r?\n/g,"\r\n"))}`}
+const EST_ACRED_TXT={Pendiente:"Sin pedir todavía",Solicitada:"Pedida, esperando respuesta",Concedida:"Concedida: puedes ir",Denegada:"Denegada"};
+function listaAcredMias(){
+  const me=mySlug();const ps=acredPartidos().filter(p=>p.captador===me);
+  const card=p=>{const est=(p.acreditacion||{}).estado||"Pendiente";const a=p.acreditacion||{};
+    return`<div class="li">${novPar(p)?NDOT:""}<div class="li-main"><div class="li-t">${esc(p.local)} – ${esc(p.visitante)}</div><div class="li-s">${esc(fechaHoraTxt(p))}${competicionTxt(p)?" · "+esc(competicionTxt(p)):""}</div>${a.fecha&&est!=="Pendiente"?`<div class="li-s">Actualizado el ${esc(new Date(a.fecha).toLocaleDateString("es-ES",{day:"numeric",month:"short"}))}</div>`:""}</div><span class="pill ${EST_ACRED_TONE[est]}">${esc(EST_ACRED_TXT[est]||est)}</span></div>`};
+  return`<div class="callout">Las acreditaciones las pide Josemi. Elige en «Partidos» a qué partido quieres ir y aquí verás si ya están pedidas y si te las han concedido.</div>
+  ${ps.length?`<section class="panel"><div class="list">${ps.map(card).join("")}</div></section>`:`<div class="empty"><strong>No tienes partidos próximos</strong><span>Crea uno en «Partidos» con «Nuevo partido» y aparecerá aquí.</span></div>`}`;
+}
 function listaAcred(){
+  if(!S.me.isOwner)return listaAcredMias();
   const ps=acredPartidos();const [fi,ff]=finDeSemana();
   const finde=ps.filter(p=>p.fecha>=fi&&p.fecha<=ff),resto=ps.filter(p=>!(p.fecha>=fi&&p.fecha<=ff));
   const sinMail=[...new Set(ps.filter(p=>!acredMail(p).to).map(p=>p.local))];
   const pend=finde.filter(p=>((p.acreditacion||{}).estado||"Pendiente")==="Pendiente").length;
   const card=p=>{const m=acredMail(p);const est=(p.acreditacion||{}).estado||"Pendiente";const open=S.f.acredOpen===p.id;
-    return`<section class="panel acred"><div class="panel-h"><div style="min-width:0"><span class="eyebrow">${esc(fechaHoraTxt(p))}</span><h3 style="margin-top:2px">${esc(p.local)} – ${esc(p.visitante)}</h3><div class="muted small">${esc(competicionTxt(p))} · lo ve ${esc(memberName(p.captador))}</div></div>
+    return`<section class="panel acred"><div class="panel-h"><div style="min-width:0"><span class="eyebrow">${esc(fechaHoraTxt(p))}</span><h3 style="margin-top:2px">${esc(p.local)} – ${esc(p.visitante)}</h3><div class="muted small">${esc(competicionTxt(p))} · va ${esc(memberName(p.captador))}</div></div>
       <select aria-label="Estado de la acreditación" id="ac_${esc(p.id)}" data-act-change="acredEstado" data-id="${esc(p.id)}" class="acred-est ${EST_ACRED_TONE[est]}" style="width:auto">${EST_ACRED.map(e=>`<option${e===est?" selected":""}>${e}</option>`).join("")}</select></div>
       ${m.to?`<div class="small"><span class="muted">Para:</span> <span class="mono">${esc(m.to)}</span> · <b>${esc(numTxt(m.num))}</b></div><div class="small"><span class="muted">Asunto:</span> ${esc(m.asunto)}</div>`
         :`<div class="callout warn">Falta el correo de acreditaciones de <b>${esc(p.local)}</b>. Añádelo a tu hoja (se lee cada jueves) o escríbelo aquí:</div>
@@ -1442,7 +1458,7 @@ async function acredEml(pid){
     await marcarSolicitada(pid);
   }catch(e){console.error(e);toast("No se pudo preparar el borrador.")}
 }
-async function marcarSolicitada(pid){const p=S.partidos[pid];if(!p)return;const est=(p.acreditacion||{}).estado||"Pendiente";if(est!=="Pendiente")return;
+async function marcarSolicitada(pid){if(!S.me.isOwner)return;const p=S.partidos[pid];if(!p)return;const est=(p.acreditacion||{}).estado||"Pendiente";if(est!=="Pendiente")return;
   await safe(()=>col("captacion_partidos").doc(pid).update({acreditacion:{estado:"Solicitada",fecha:new Date().toISOString(),por:mySlug()||""}}),"Marcada como solicitada")}
 
 /* ----- Relación de un jugador de captación con los jugadores de la agencia ----- */
@@ -1595,7 +1611,7 @@ async function gcalBorrar(t){const eid=t&&t.gcal&&t.gcal.eventId;if(!eid||!S.mcp
 function viewPartidosSec(){
   if(S.nav.id&&S.nav.sub==="partido")return viewPartido();
   const t=S.f.ptab==="acred"?"acred":"partidos";
-  const tabs=`<div class="tabs" role="tablist"><button role="tab" aria-selected="${t==="partidos"}" data-act="ptab" data-t="partidos">Partidos</button><button role="tab" aria-selected="${t==="acred"}" data-act="ptab" data-t="acred">Acreditaciones</button></div>`;
+  const tabs=`<div class="tabs" role="tablist"><button role="tab" aria-selected="${t==="partidos"}" data-act="ptab" data-t="partidos">Partidos</button><button role="tab" aria-selected="${t==="acred"}" data-act="ptab" data-t="acred">${S.me.isOwner?"Acreditaciones":"Mis acreditaciones"}</button></div>`;
   return`<div class="head"><div class="head-l"><span class="eyebrow">Partidos a los que vamos</span><h1>Partidos</h1></div>
     ${t==="acred"?"":`<button class="btn primary" data-act="newForm" data-form="partido">Nuevo partido</button>`}</div>
   ${tabs}${t==="partidos"?listaPartidos():listaAcred()}`;
@@ -1632,10 +1648,10 @@ function listaPartidos(){
         <div class="fld"><label for="np_grupo">Categoría y grupo</label><select id="np_grupo" data-act-change="npGrupo">${gs.map(x=>`<option value="${esc(x.id)}"${x.id===gsel?" selected":""}>${esc(x.nombre)}</option>`).join("")}</select></div>
         <div class="fld span"><label for="np_partido">Partido (próximas 2 semanas)</label><select id="np_partido" name="partidoIdx"><option value="">— Elige el partido —</option>${ms.map(p=>`<option value="${p.i}">${esc(partidoCalLabel(p))}</option>`).join("")}</select></div>
         <input type="hidden" name="grupoId" value="${esc(gsel)}">
-        ${F("captador","Quién lo ve",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])})}
+        ${capTodos()?F("captador","Quién lo ve",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])}):`<input type="hidden" name="captador" value="${esc(mySlug()||"")}">`}
       </div>`:`<div class="callout">El calendario de BeSoccer se está cargando por primera vez y tardará unas horas. Mientras tanto, apunta el partido a mano.</div>`}
       <details${gs.length?"":" open"}><summary class="muted small" style="cursor:pointer">El partido no está en la lista</summary><div class="form" style="margin-top:10px">
-        ${F("fecha","Fecha",todayStr(),{type:"date"})}${F("hora","Hora","",{ph:"17:00"})}${clubField("local","Equipo local","")}${clubField("visitante","Equipo visitante","")}${F("categoria","Categoría / competición","")}${F("campo","Campo","")}${gs.length?"":F("captador","Quién lo ve",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])})}
+        ${F("fecha","Fecha",todayStr(),{type:"date"})}${F("hora","Hora","",{ph:"17:00"})}${clubField("local","Equipo local","")}${clubField("visitante","Equipo visitante","")}${F("categoria","Categoría / competición","")}${F("campo","Campo","")}${gs.length||!capTodos()?"":F("captador","Quién lo ve",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])})}${!gs.length&&!capTodos()?`<input type="hidden" name="captador" value="${esc(mySlug()||"")}">`:""}
       </div></details>
       <div class="form-actions"><button type="button" class="btn ghost" data-act="cancelNew">Cancelar</button><button class="btn primary">Crear y abrir campograma</button></div>${datalistEquipos()}</form>`;
   }
@@ -1658,14 +1674,14 @@ function listaCapJug(){
   if(f.cq){const q=norm(f.cq);list=list.filter(c=>norm([c.nombre,c.club,c.posicion,c.agente].join(" ")).includes(q))}
   list.sort((a,b)=>String(b.actualizado||"").localeCompare(String(a.actualizado||"")));
   const nf=S.newForm==="capjug"?(FK="nc",`<form class="panel" data-form="nuevoCap" data-dirtytrack><div class="panel-h"><h3>Nuevo candidato</h3></div><div class="form">
-    ${F("tipo","Tipo","Jugador",{type:"select",opts:["Jugador","Entrenador"],empty:false})}${F("nombre","Nombre","")}${F("posicion","Posición","",{type:"select",opts:POS_OPTS})}${clubField("club","Club","")}${F("anio","Año de nacimiento","",{type:"number"})}${F("captador","Captador",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])})}
+    ${F("tipo","Tipo","Jugador",{type:"select",opts:["Jugador","Entrenador"],empty:false})}${F("nombre","Nombre","")}${F("posicion","Posición","",{type:"select",opts:POS_OPTS})}${clubField("club","Club","")}${F("anio","Año de nacimiento","",{type:"number"})}${capTodos()?F("captador","Captador",mySlug(),{type:"select",opts:membersSorted().map(m=>[m.id,m.nombre])}):""}
     ${F("seguimientoActivo","Seguimiento al minuto: buscar sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57 y avisarme al acabar",false,{type:"check",span:true})}
     <div class="form-actions"><button type="button" class="btn ghost" data-act="cancelNew">Cancelar</button><button class="btn primary">Crear ficha</button></div></div>${datalistEquipos()}</form>`):"";
   return nf+`<div class="chips" role="group" aria-label="Tipo"><button class="chip" aria-pressed="${!f.ctipo}" data-act="ctipo" data-v="">Todos <span class="n">${all.length}</span></button><button class="chip" aria-pressed="${f.ctipo==="jug"}" data-act="ctipo" data-v="jug">JUGADORES <span class="n">${all.length-nEnt}</span></button><button class="chip" aria-pressed="${f.ctipo==="ent"}" data-act="ctipo" data-v="ent">ENTRENADORES <span class="n">${nEnt}</span></button></div>
   <div class="chips"><button class="chip" aria-pressed="${!f.cest}" data-act="cest" data-v="">Todos <span class="n">${Object.keys(S.capJug).length}</span></button>${EST_CAP.map(e=>`<button class="chip" aria-pressed="${f.cest===e}" data-act="cest" data-v="${esc(e)}">${e} <span class="n">${counts[e]}</span></button>`).join("")}</div>
   <div class="chips" role="group" aria-label="Seguimiento"><button class="chip" aria-pressed="${!f.cseg}" data-act="cseg" data-v="">Todos</button><button class="chip" aria-pressed="${f.cseg==="si"}" data-act="cseg" data-v="si" title="Se buscan sus partidos los sábados y domingos a las 14:57, 16:57, 18:57, 20:57 y 22:57">SEGUIMIENTO AL MINUTO <span class="n">${nSeg}</span></button><button class="chip" aria-pressed="${f.cseg==="no"}" data-act="cseg" data-v="no">SOLO NOS GUSTA <span class="n">${nNo}</span></button></div>
   <div class="toolbar"><label class="search">${ICON.search}<input id="q_cap" data-filter="cq" type="search" placeholder="Buscar por nombre, club o agente" value="${esc(f.cq)}" aria-label="Buscar en captación"></label>
-  <select data-filter="ccap" id="fl_ccap" aria-label="Captador"><option value="">Todos los captadores</option>${membersSorted().map(m=>`<option value="${esc(m.id)}"${f.ccap===m.id?" selected":""}>${esc(m.nombre)}</option>`).join("")}</select></div>
+  ${capTodos()?"":"<!--"}<select data-filter="ccap" id="fl_ccap" aria-label="Captador"><option value="">Todos los captadores</option>${membersSorted().map(m=>`<option value="${esc(m.id)}"${f.ccap===m.id?" selected":""}>${esc(m.nombre)}</option>`).join("")}</select>${capTodos()?"":"-->"}</div>
   ${list.length?`<div class="grid3">${list.map(c=>`<button class="card${esEntrenador(c)?" coach":""}" data-act="openCap" data-id="${esc(c.id)}">${novCap(c)?NDOT:""}<div class="row" style="justify-content:space-between"><span class="card-t">${esc(c.nombre)}</span>${esEntrenador(c)?`<span class="pos role">ENTRENADOR</span>`:c.posicion?`<span class="pos">${esc(c.posicion)}</span>`:""}</div><div class="card-m">${esc([c.club,c.anio?"Año "+c.anio:""].filter(Boolean).join(" · ")||"Sin club")}</div><div class="card-f"><span class="pill ${EST_CAP_TONE[c.estado||"Observado"]}">${esc(c.estado||"Observado")}</span>${capSeg(c)?(()=>{const due=contactoDue(c,todayStr());return due?`<span class="pill ${due.nivel}">${due.tipo==="partido"?"Escríbele tras el partido":due.d===null?"Sin contactos":"Contacto hace "+due.d+" d"}</span>`:`<span class="pill ok">Contacto al día</span>`})():""}${c.tieneAgente==="Sí"?`<span class="pill ${c.firmadoAgente==="Sí"?"bad":"warn"}">${c.firmadoAgente==="Sí"?"Firmado con agente":"Tiene agente"}</span>`:c.tieneAgente==="No"?`<span class="pill ok">Sin agente</span>`:""}${stars(c.valoracion)}</div><div class="card-m">${esc(memberName(c.captador))}</div></button>`).join("")}</div>`:`<div class="empty"><strong>${Object.keys(S.capJug).length?"Ningún jugador coincide":"Sin jugadores en captación"}</strong><span>Se crean solos al marcarlos en un partido, o añádelos a mano.</span></div>`}`;
 }
 function zonaPos(x,y){
@@ -1947,7 +1963,7 @@ function viewAdmin(){
   const solHtml=sols.length?`<section class="panel"><div class="panel-h"><h3>Solicitudes de acceso</h3><span class="pill warn">${sols.length}</span></div><div class="list">${sols.map(s=>`<div class="li" data-sol="${esc(s.id)}"><div class="li-main"><div class="li-t" data-pname="${esc(s.id)}">${esc(s.nombreIndicado||"Sin nombre")}</div><div class="li-s">Pidió acceso el ${fmtDate(s.fecha)}</div></div><select id="solm_${esc(s.id)}" aria-label="Es…" style="width:auto"><option value="">Es…</option>${membersSorted().map(m=>`<option value="${esc(m.id)}">${esc(m.nombre)}${m.userId?" (ya vinculado)":""}</option>`).join("")}</select><button class="btn sm primary" data-act="solOk" data-id="${esc(s.id)}">Dar acceso</button>${delBtn("sol:"+s.id,"Rechazar")}</div>`).join("")}</div></section>`:"";
   const mem=membersSorted().map(m=>{FK="m_"+m.id;const pm={...PERM_NONE,...(m.permisos||{})};const isMe=m.userId&&m.userId===S.me.id;
     return`<form class="panel" data-form="miembro" data-id="${esc(m.id)}" data-dirtytrack><div class="panel-h"><div><h3>${esc(m.nombre)}</h3><div class="muted small">${esc(m.rol||"")}</div></div>${m.userId?`<span class="pill ok">${isMe?"Eres tú":"Vinculado"}</span>`:`<span class="pill">Pendiente de entrar</span>`}</div>
-      ${isMe?`<p class="muted small" style="margin:0">Como propietario tienes acceso a todo.</p>`:`<div class="perm-grid">${F("permisos.jugadores","Jugadores",pm.jugadores,{type:"select",opts:PERM_JUG,empty:false})}${F("permisos.vencimientos","Fechas de contrato con la agencia",pm.vencimientos,{type:"check"})}${F("permisos.contratos","Contratos con club y comisiones",pm.contratos,{type:"check"})}${F("permisos.captacion","Captación",pm.captacion,{type:"check"})}${F("permisos.mercado","Mercado",pm.mercado,{type:"check"})}${F("activo","Acceso activo",m.activo!==false,{type:"check"})}</div>`}
+      ${isMe?`<p class="muted small" style="margin:0">Como propietario tienes acceso a todo.</p>`:`<div class="perm-grid">${F("permisos.jugadores","Jugadores",pm.jugadores,{type:"select",opts:PERM_JUG,empty:false})}${F("permisos.vencimientos","Fechas de contrato con la agencia",pm.vencimientos,{type:"check"})}${F("permisos.contratos","Contratos con club y comisiones",pm.contratos,{type:"check"})}${F("permisos.captacion","Captación",capPerm(pm.captacion),{type:"select",opts:[["","Sin acceso"],["suyos","Solo los que mete él"],["todos","Ve todos"]],empty:false})}${F("permisos.mercado","Mercado",pm.mercado,{type:"check"})}${F("activo","Acceso activo",m.activo!==false,{type:"check"})}</div>`}
       <div class="form">${F("nombre","Nombre",m.nombre)}${F("rol","Rol",m.rol)}${F("telefono","Teléfono",m.telefono,{type:"tel"})}
       ${window.OF_WEB&&!isMe?`<div class="fld span"><div class="sep"></div></div><div class="fld span"><label>${m.userId?"Acceso: "+esc(m.email||"cuenta vinculada")+" · cambiar contraseña":"Crear acceso"}</label><div class="row" style="gap:8px;flex-wrap:wrap"><input id="ca_e_${esc(m.id)}" type="email" placeholder="correo@ejemplo.com" value="${esc(m.email||"")}" aria-label="Correo de ${esc(m.nombre)}" style="flex:1 1 200px"><input id="ca_p_${esc(m.id)}" type="text" placeholder="Contraseña (8+)" aria-label="Contraseña" style="flex:1 1 140px" autocomplete="off"><button type="button" class="btn sm" data-act="crearAcceso" data-id="${esc(m.id)}">${m.userId?"Cambiar contraseña":"Crear acceso"}</button></div></div>`:""}
       <div class="form-actions">${m.userId&&!isMe?`<button type="button" class="btn sm ghost" data-act="unlink" data-id="${esc(m.id)}">Desvincular cuenta</button>`:""}<button class="btn primary">Guardar</button></div></div></form>`}).join("");
@@ -2034,7 +2050,7 @@ async function onSubmit(form){
       const el=equipoPorNombre(d.local),ev=equipoPorNombre(d.visitante);const cm=calMatch(d.local,d.visitante,d.fecha);
       if(cm&&cm.x.f===d.fecha){o={fecha:cm.x.f,hora:d.hora||"",local:cm.x.l,visitante:cm.x.v,localUrl:cm.x.lu||"",visitanteUrl:cm.x.vu||"",besoccerUrl:cm.x.u||"",jornada:cm.x.j||"",categoria:cm.g.nombre||"",grupoId:cm.g.id,campo:d.campo||"",captador:d.captador||mySlug(),notas:""}}
       else o={fecha:d.fecha,hora:d.hora||"",local:d.local,visitante:d.visitante,localUrl:(el&&el.u)||"",visitanteUrl:(ev&&ev.u)||"",besoccerUrl:"",categoria:d.categoria||(el&&(el.g||el.cat))||"",campo:d.campo||"",captador:d.captador||mySlug(),notas:""}}
-    const ref=col("captacion_partidos").doc();clean();S.f.npGrupo="";if(await safe(()=>ref.set(stamp({...o,marcadores:[],alineaciones:{}})),"Partido asignado a "+memberName(o.captador))){go("partidos",ref.id,"partido")}return}
+    if(!capTodos())o.captador=mySlug()||o.captador;o.creadoPor=mySlug()||"";const ref=col("captacion_partidos").doc();clean();S.f.npGrupo="";if(await safe(()=>ref.set(stamp({...o,marcadores:[],alineaciones:{}})),"Partido asignado a "+memberName(o.captador))){go("partidos",ref.id,"partido")}return}
   if(kind==="partidoEdit"){clean();await safe(()=>col("captacion_partidos").doc(nav.id).update(stamp(d)),"Guardado");render();return}
   if(kind==="marcadorNuevo"){
     const p=S.partidos[nav.id];const dr=S.pitchDraft;if(!p||!dr)return;
@@ -2046,7 +2062,7 @@ async function onSubmit(form){
     await safe(()=>col("captacion_partidos").doc(p.id).update({marcadores:arr}),"Jugador marcado");render();return}
   if(kind==="marcadorEdit"){const p=S.partidos[nav.id];const arr=clone(p.marcadores||[]);const i=arr.findIndex(k=>k.id===S.pitchSel);if(i<0)return;Object.assign(arr[i],{equipo:d.equipo,dorsal:d.dorsal??"",nombre:d.nombre,posicion:d.posicion,nota:d.nota});clean();await safe(()=>col("captacion_partidos").doc(p.id).update({marcadores:arr}),"Guardado");render();return}
   if((kind==="nuevoCap"||kind==="capEdit")&&d.club){const eq=equipoPorNombre(d.club);if(eq){d.club=eq.n;if(!d.categoria&&eq.cat)d.categoria=eq.cat}}
-  if(kind==="nuevoCap"){if(!d.nombre)return toast("Falta el nombre.");const ref=col("captacion_jugadores").doc();clean();if(await safe(()=>ref.set(stamp({...d,seguimientoActivo:d.seguimientoActivo===true,estado:"Observado"})),"Ficha creada"))go("captacion",ref.id,"jug");return}
+  if(kind==="nuevoCap"){if(!d.nombre)return toast("Falta el nombre.");const ref=col("captacion_jugadores").doc();clean();if(await safe(()=>ref.set(stamp({...d,captador:capTodos()?(d.captador||mySlug()):mySlug(),creadoPor:mySlug()||"",seguimientoActivo:d.seguimientoActivo===true,estado:"Observado"})),"Ficha creada"))go("captacion",ref.id,"jug");return}
   if(kind==="capEdit"){clean();await safe(()=>col("captacion_jugadores").doc(nav.id).update(stamp(d)),"Guardado");render();return}
   if(kind==="nuevoEquipo"){if(!d.nombre)return toast("Falta el nombre del club.");const ref=col("mercado_equipos").doc();clean();if(await safe(()=>ref.set(stamp({...d,categoria:S.f.mcat,contactos:[],mercados:{}})),"Equipo añadido"))go("mercado",ref.id);return}
   if(kind==="eqDatos"){const cs=Object.values(d.contactos||{}).filter(c=>c&&(c.nombre||c.telefono||c.cargo));const o={...d,contactos:cs};if(o.grupo!=null)o.grupo=String(o.grupo);clean();await safe(()=>col("mercado_equipos").doc(nav.id).update(stamp(o)),"Club guardado");render();return}
@@ -2318,7 +2334,7 @@ document.addEventListener("change",async e=>{
   const a=t.dataset.actChange;if(!a)return;
   if(a==="tTodas"){S.f.tTodas=t.checked;render();return}
   if(a==="capSegToggle"){const id=t.dataset.id;await safe(()=>col("captacion_jugadores").doc(id).update({seguimientoActivo:t.checked}),t.checked?"Seguimiento activado":"Seguimiento desactivado");render();return}
-  if(a==="acredEstado"){const pid=t.dataset.id;await safe(()=>col("captacion_partidos").doc(pid).update({acreditacion:{estado:t.value,fecha:new Date().toISOString(),por:mySlug()||""}}),"Acreditación: "+t.value.toLowerCase());return}
+  if(a==="acredEstado"){if(!S.me.isOwner)return;const pid=t.dataset.id;await safe(()=>col("captacion_partidos").doc(pid).update({acreditacion:{estado:t.value,fecha:new Date().toISOString(),por:mySlug()||""}}),"Acreditación: "+t.value.toLowerCase());return}
   if(a==="mCat"||a==="mGr"||a==="mEq"){clean();if(a==="mCat"){S.f.mcat=t.value;S.f.mgrupo="";S.f.meq="";S.f.meqOtro=false}else if(a==="mGr"){S.f.mgrupo=t.value;S.f.meq="";S.f.meqOtro=false}else{if(t.value==="__otro"){S.f.meqOtro=true;S.f.meq=""}else{S.f.meq=t.value;S.f.meqOtro=false}}
     try{localStorage.setItem("of_merc",JSON.stringify({c:S.f.mcat,g:S.f.mgrupo,e:S.f.meq}))}catch(_){}render();return}
   if(a==="npGrupo"){S.f.npGrupo=t.value;const cap=document.getElementById("f_np_captador");const v=cap&&cap.value;render();const c2=document.getElementById("f_np_captador");if(c2&&v)c2.value=v;return}
@@ -2331,10 +2347,12 @@ document.addEventListener("change",async e=>{
 document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("mk")){e.preventDefault();clean();S.pitchDraft=null;S.pitchSel=e.target.dataset.mid;render()}});
 
 /* ===================== Arranque ===================== */
+const SUB_FILTRO={capJug:x=>capMio(x),partidos:x=>parMio(x)};
 function subColl(path,key){
-  S.db.collection(path).onSnapshot(snap=>{const o={};snap.docs.forEach(d=>{o[d.id]={...d.data(),id:d.id}});S[key]=o;S.loaded[key]=true;checkReady();scheduleRender()},err=>{console.warn(path,err);S.loaded[key]=true;checkReady();scheduleRender()});
+  S.db.collection(path).onSnapshot(snap=>{const o={};const fl=SUB_FILTRO[key];snap.docs.forEach(d=>{const x={...d.data(),id:d.id};if(!fl||!S.ready||fl(x))o[d.id]=x});S["_all_"+key]=fl?snap:null;S[key]=o;S.loaded[key]=true;checkReady();scheduleRender()},err=>{console.warn(path,err);S.loaded[key]=true;checkReady();scheduleRender()});
 }
-function checkReady(){if(!S.ready&&S.loaded.miembros&&S.loaded.config){S.ready=true;autoLinkOwner()}}
+function refiltrar(){["capJug","partidos"].forEach(k=>{const sn=S["_all_"+k];if(!sn)return;const o={};sn.docs.forEach(d=>{const x={...d.data(),id:d.id};if(SUB_FILTRO[k](x))o[d.id]=x});S[k]=o})}
+function checkReady(){if(!S.ready&&S.loaded.miembros&&S.loaded.config){S.ready=true;refiltrar();autoLinkOwner()}else if(S.ready&&S._permSig!==JSON.stringify([mySlug(),perms()])){refiltrar()}S._permSig=JSON.stringify([mySlug(),perms()])}
 let linking=false;
 async function autoLinkOwner(){
   if(!S.me.isOwner||!S.me.id||linking)return;
